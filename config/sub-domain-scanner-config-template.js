@@ -2,5 +2,5 @@
 
 module.exports =
 {
-    testArg: "example arg"
+    "crtshRSSURLPrefix": `https://crt.sh/atom?q=`
 };
