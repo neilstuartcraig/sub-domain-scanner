@@ -33,10 +33,16 @@ function getCertificatesFromRSSItems(RSSItems) {
     }
 
     const certificates = RSSItems.map(item => {
-        const rawSummary = item.summary._;
-        const certificate = rawSummary.match(/-----BEGIN CERTIFICATE-----(.+)-----END CERTIFICATE-----/)[0].replace(/<br>/g, _os.EOL);
-        return certificate;
-    });
+        try {
+            const rawSummary = item.summary._;
+            const certificate = rawSummary.match(/-----BEGIN CERTIFICATE-----(.+)-----END CERTIFICATE-----/)[0].replace(/<br>/g, _os.EOL);
+            return certificate;
+        } catch (e) {
+            return undefined;
+        }
+    }).filter(cert => {
+        return cert !== undefined;
+    }); // Filter out any invalid certs
 
     return certificates;
 }
@@ -99,6 +105,9 @@ async function getHostnamesFromCTLogs(hostname) {
 }
 
 module.exports = {
+    getCertificatesFromRSSItems: getCertificatesFromRSSItems,
+    getSANSFromCertificatesArray: getSANSFromCertificatesArray,
+    getRSSURLFromHostname: getRSSURLFromHostname,
     getHostnamesFromCTLogs: getHostnamesFromCTLogs
 };
 

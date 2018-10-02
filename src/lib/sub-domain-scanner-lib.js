@@ -8,8 +8,10 @@ import {default as x509} from "x509-parser";
 
 import {EOL} from "os";
 
-const parser = new Parser({
-    customFields: {
+const parser = new Parser(
+{
+    customFields:
+    {
         item: ["summary"]
     }
 });
@@ -20,10 +22,17 @@ function getCertificatesFromRSSItems(RSSItems: Array)
 {
     const certificates = RSSItems.map((item) => 
     {
-        const rawSummary = item.summary._;
-        const certificate = rawSummary.match(/-----BEGIN CERTIFICATE-----(.+)-----END CERTIFICATE-----/)[0].replace(/<br>/g, EOL);
-        return certificate;
-    });
+        try
+        {
+            const rawSummary = item.summary._;
+            const certificate = rawSummary.match(/-----BEGIN CERTIFICATE-----(.+)-----END CERTIFICATE-----/)[0].replace(/<br>/g, EOL);
+            return certificate;
+        }
+        catch(e)
+        {
+            return undefined;
+        }
+    }).filter((cert) => cert !== undefined); // Filter out any invalid certs
 
     return certificates;
 }
@@ -77,5 +86,8 @@ async function getHostnamesFromCTLogs(hostname: string)
 
 module.exports =
 {
+    getCertificatesFromRSSItems: getCertificatesFromRSSItems,
+    getSANSFromCertificatesArray: getSANSFromCertificatesArray,
+    getRSSURLFromHostname: getRSSURLFromHostname,
     getHostnamesFromCTLogs: getHostnamesFromCTLogs
 };
