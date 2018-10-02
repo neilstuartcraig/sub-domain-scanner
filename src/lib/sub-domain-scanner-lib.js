@@ -1,6 +1,6 @@
 "use strict";
 
-import {default as config} from "../../config/sub-domain-scanner-config.js"; // NOTE: Path is relative to build dir (dist/)
+// import {default as config} from "../../config/sub-domain-scanner-config.js"; // NOTE: Path is relative to build dir (dist/)
 
 import {escape} from "querystring";
 import {default as Parser} from "rss-parser";
