@@ -1,7 +1,7 @@
 {
   "name": "sub-domain-scanner",
-  "version": "1.0.0",
-  "description": "DNS sub-domain scanner which looks for vulnerabilities",
+  "version": "1.0.1",
+  "description": "A CLI sub-domain discovery and analysis tool, intended to help discover and validate sub-domain takeover vulnerabilities",
   "main": "dist/index.js",
   "config": {
     "force": true
@@ -31,7 +31,7 @@
     "url": "git+https://github.com/gh-username/sub-domain-scanner.git"
   },
   "keywords": [],
-  "author": "neilstuartcraig <neil.craig@thedotproduct.org>",
+  "author": "Neil Craig <neil.craig@thedotproduct.org>",
   "license": "Apache-2.0",
   "bugs": {
     "url": "https://github.com/gh-username/sub-domain-scanner/issues"
