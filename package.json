@@ -15,7 +15,7 @@
   "scripts": {
     "start": "node .",
     "vuln-scan": "npm audit",
-    "lint": "eslint ./*.js lib/*.js test/*.js",
+    "lint": "eslint ./*.js src/**.js test/*.js",
     "test": "nyc node_modules/.bin/ava test/*.js",
     "create-report": "nyc report --reporter=lcov --reporter=html",
     "show-report": "open coverage/index.html",
