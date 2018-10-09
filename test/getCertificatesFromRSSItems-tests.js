@@ -4,7 +4,7 @@ import {test} from "ava";
 import {getCertificatesFromRSSItems} from "../src/lib/sub-domain-scanner-lib.js";
 import {validRSSItems, invalidFormatRSSItems1, invalidFormatRSSItems2} from "./fixtures/RSSItems.js";
 
-test("Correct operation, valid input", async (t) => 
+test("Correct operation, valid input", (t) => 
 {
     const certificates: Array = getCertificatesFromRSSItems(validRSSItems);
     t.is(certificates.length === validRSSItems.length, true);
@@ -15,19 +15,19 @@ test("Correct operation, valid input", async (t) =>
     }
 });
 
-test("Correct operation, invalid format input 1", async (t) => 
+test("Correct operation, invalid format input 1", (t) => 
 {
     const certificates: Array = getCertificatesFromRSSItems(invalidFormatRSSItems1);
     t.is(certificates.length === invalidFormatRSSItems1.length - 1, true);
 });
 
-test("Correct operation, invalid format input 2", async (t) => 
+test("Correct operation, invalid format input 2", (t) => 
 {
     const certificates: Array = getCertificatesFromRSSItems(invalidFormatRSSItems2);
     t.is(certificates.length === 0, true);
 });
 
-test("Correct operation, empty input", async (t) => 
+test("Correct operation, empty input", (t) => 
 {
     const certificates: Array = getCertificatesFromRSSItems([]);
     t.is(certificates.length === 0, true);

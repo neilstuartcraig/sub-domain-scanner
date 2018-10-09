@@ -20,12 +20,12 @@ const parser = new Parser(
 // Takes an input arg of the RSS object "items" property and returns an Array of X509 certificates
 function getCertificatesFromRSSItems(RSSItems: Array)
 {
-    const certificates = RSSItems.map((item) => 
+    const certificates: Array = RSSItems.map((item) => 
     {
         try
         {
-            const rawSummary = item.summary._;
-            const certificate = rawSummary.match(/-----BEGIN CERTIFICATE-----(.+)-----END CERTIFICATE-----/)[0].replace(/<br>/g, EOL);
+            const rawSummary: string = item.summary._;
+            const certificate: string = rawSummary.match(/-----BEGIN CERTIFICATE-----(.+)-----END CERTIFICATE-----/)[0].replace(/<br>/g, EOL);
             return certificate;
         }
         catch(e)
@@ -37,30 +37,38 @@ function getCertificatesFromRSSItems(RSSItems: Array)
     return certificates;
 }
 
-// Takes an input of an Array of X509 certificates and returns a de-duped Array of SAN hostnames
+// Takes an input of an Array of X509 certificates and returns a de-duped, sorted Array of SAN hostnames
 function getSANSFromCertificatesArray(certificatesArray: Array)
 {
     let hostnamesSet = new Set();
 
-    for(let certificate of certificatesArray)
+    for(let certificate of certificatesArray) // Note: we don't type-check certificate as it'll throw if we do and it's wrong
     {
-        const SANS = x509.getAltNames(certificate); // Array
-
-        for(let hostname of SANS) 
+        try
         {
-            hostnamesSet.add(hostname.toLowerCase());
-        }    
+            const SANS: Array = x509.getAltNames(certificate); // Array
+
+            for(let hostname: string of SANS) 
+            {
+                hostnamesSet.add(hostname.toLowerCase());
+            }    
+        }
+        catch(e)
+        {
+            // we don't need to do anything here(?), the certificate is wrongly formatted so we ignore it
+        }
+
     }
 
-    const rawHostnames = Array.from(hostnamesSet);
-    const hostnames = rawHostnames.sort();
+    const rawHostnames: Array = Array.from(hostnamesSet);
+    const hostnames: Array = rawHostnames.sort();
     return hostnames;
 }
 
 function getRSSURLFromHostname(hostname: string)
 {
     const URLEncodedHostname = escape(hostname.replace(/^\*/, "%"));
-    const URL = `${config.crtshRSSURLPrefix}${URLEncodedHostname}`;
+    const URL: string = `${config.crtshRSSURLPrefix}${URLEncodedHostname}`;
     return URL;
 }
 
