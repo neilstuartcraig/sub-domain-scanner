@@ -26,6 +26,31 @@ const parser = new _rssParser2.default({
     }
 });
 
+// Takes an array of hostnames and filters them to remove out of scope entries
+function filterHostnames(hostnames, mustMatch, mustNotMatch) {
+    if (!Array.isArray(hostnames)) {
+        throw new TypeError("Value of argument \"hostnames\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(hostnames));
+    }
+
+    if (!(mustMatch instanceof RegExp)) {
+        throw new TypeError("Value of argument \"mustMatch\" violates contract.\n\nExpected:\nRegExp\n\nGot:\n" + _inspect(mustMatch));
+    }
+
+    if (!(mustNotMatch instanceof RegExp)) {
+        throw new TypeError("Value of argument \"mustNotMatch\" violates contract.\n\nExpected:\nRegExp\n\nGot:\n" + _inspect(mustNotMatch));
+    }
+
+    const filteredHostnames = hostnames.filter(hostname => {
+        if (hostname.match(mustMatch) && !hostname.match(mustNotMatch)) {
+            return true;
+        }
+
+        return false;
+    });
+
+    return filteredHostnames;
+}
+
 // Takes an input arg of the RSS object "items" property and returns an Array of X509 certificates
 function getCertificatesFromRSSItems(RSSItems) {
     if (!Array.isArray(RSSItems)) {
@@ -73,27 +98,28 @@ function getSANSFromCertificatesArray(certificatesArray) {
         throw new TypeError("Expected certificatesArray to be iterable, got " + _inspect(certificatesArray));
     }
 
-    for (let certificate of certificatesArray) {
-        if (!(typeof certificate === 'string')) {
-            throw new TypeError("Value of variable \"certificate\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(certificate));
-        }
+    for (let certificate of certificatesArray) // Note: we don't type-check certificate as it'll throw if we do and it's wrong
+    {
+        try {
+            const SANS = _x509Parser2.default.getAltNames(certificate); // Array
 
-        const SANS = _x509Parser2.default.getAltNames(certificate); // Array
-
-        if (!Array.isArray(SANS)) {
-            throw new TypeError("Value of variable \"SANS\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(SANS));
-        }
-
-        if (!(SANS && (typeof SANS[Symbol.iterator] === 'function' || Array.isArray(SANS)))) {
-            throw new TypeError("Expected SANS to be iterable, got " + _inspect(SANS));
-        }
-
-        for (let hostname of SANS) {
-            if (!(typeof hostname === 'string')) {
-                throw new TypeError("Value of variable \"hostname\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(hostname));
+            if (!Array.isArray(SANS)) {
+                throw new TypeError("Value of variable \"SANS\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(SANS));
             }
 
-            hostnamesSet.add(hostname.toLowerCase());
+            if (!(SANS && (typeof SANS[Symbol.iterator] === 'function' || Array.isArray(SANS)))) {
+                throw new TypeError("Expected SANS to be iterable, got " + _inspect(SANS));
+            }
+
+            for (let hostname of SANS) {
+                if (!(typeof hostname === 'string')) {
+                    throw new TypeError("Value of variable \"hostname\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(hostname));
+                }
+
+                hostnamesSet.add(hostname.toLowerCase());
+            }
+        } catch (e) {
+            // we don't need to do anything here(?), the certificate is wrongly formatted so we ignore it
         }
     }
 
@@ -144,7 +170,8 @@ module.exports = {
     getCertificatesFromRSSItems: getCertificatesFromRSSItems,
     getSANSFromCertificatesArray: getSANSFromCertificatesArray,
     getRSSURLFromHostname: getRSSURLFromHostname,
-    getHostnamesFromCTLogs: getHostnamesFromCTLogs
+    getHostnamesFromCTLogs: getHostnamesFromCTLogs,
+    filterHostnames: filterHostnames
 };
 
 function _inspect(input, depth) {

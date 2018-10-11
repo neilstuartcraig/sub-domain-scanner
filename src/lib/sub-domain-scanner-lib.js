@@ -16,6 +16,21 @@ const parser = new Parser(
     }
 });
 
+// Takes an array of hostnames and filters them to remove out of scope entries
+function filterHostnames(hostnames: Array, mustMatch: RegExp, mustNotMatch: RegExp)
+{
+    const filteredHostnames = hostnames.filter((hostname) => 
+    {
+        if(hostname.match(mustMatch) && !hostname.match(mustNotMatch))
+        {
+            return true;
+        }
+
+        return false;
+    });
+
+    return filteredHostnames;
+}
 
 // Takes an input arg of the RSS object "items" property and returns an Array of X509 certificates
 function getCertificatesFromRSSItems(RSSItems: Array)
@@ -97,5 +112,6 @@ module.exports =
     getCertificatesFromRSSItems: getCertificatesFromRSSItems,
     getSANSFromCertificatesArray: getSANSFromCertificatesArray,
     getRSSURLFromHostname: getRSSURLFromHostname,
-    getHostnamesFromCTLogs: getHostnamesFromCTLogs
+    getHostnamesFromCTLogs: getHostnamesFromCTLogs,
+    filterHostnames: filterHostnames
 };

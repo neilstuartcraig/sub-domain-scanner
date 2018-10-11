@@ -1,5 +1,9 @@
 # sub-domain-scanner changelog
 
+## v1.1.0
+* Add yargs wrapper to support nice CI arguments
+* Add hostname "must match" and "must not match" filtering and associated unit tests
+
 ## v1.0.1
 * Add some tests
 * Add Travis integration

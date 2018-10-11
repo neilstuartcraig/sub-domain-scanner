@@ -1,12 +1,17 @@
+#!/usr/bin/env node
+
+
 "use strict";
+// See https://github.com/yargs/yargs/blob/master/docs/advanced.md#commanddirdirectory-opts for info on the structure of command modules
 
-// TODO: have a specific var for the lib filename and use that for consistency
-// import {default as config} from "../config/sub-domain-scanner-config.js"; // NOTE: Path is relative to build dir (dist/)
+var _yargs = require("yargs");
 
-var _subDomainScannerLib = require("./lib/sub-domain-scanner-lib.js");
+var _yargs2 = _interopRequireDefault(_yargs);
 
-// NOTE: Path is relative to build dir (dist/) - local because lib is babel'd
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
+_yargs2.default.commandDir("yargs-cmds").demandCommand(1, `Please specify a commamd (see above for details and usage example)`).help("help").wrap(_yargs2.default.terminalWidth()).strict(true).completion("completion", "generate a bash/zsh(/etc.) command completion script. Run `gtm-cli completion >> ~/.bashrc && source ~/.bashrc` (for bash) or `gtm-cli completion >> ~/.zshrc && source ~/.zshrc` (for zsh) to enable it for the current user") // Add a pseudo command named "completion" which generates a bashrc compliant script to enabled CLI command completion for gtm-cli
+.argv;
 
 /*
     TODO:
@@ -35,79 +40,3 @@ var _subDomainScannerLib = require("./lib/sub-domain-scanner-lib.js");
     * output should be ranked/grouped by severity
         * critical, high, medium, low, no risk
 */
-
-async function main() {
-    // NOTE: this won't actually be the fn that gets called, it'll be e.g. run(<opts>)
-    const CTLogs = await (0, _subDomainScannerLib.getHostnamesFromCTLogs)("www.thedotproduct.org");
-
-    if (!(CTLogs && (typeof CTLogs[Symbol.iterator] === 'function' || Array.isArray(CTLogs)))) {
-        throw new TypeError("Expected CTLogs to be iterable, got " + _inspect(CTLogs));
-    }
-
-    for (let hostname of CTLogs) {
-        console.log(`${hostname}`);
-    }
-
-    console.log(`Found ${CTLogs.length} hostnames`);
-}
-
-main();
-
-function _inspect(input, depth) {
-    const maxDepth = 4;
-    const maxKeys = 15;
-
-    if (depth === undefined) {
-        depth = 0;
-    }
-
-    depth += 1;
-
-    if (input === null) {
-        return 'null';
-    } else if (input === undefined) {
-        return 'void';
-    } else if (typeof input === 'string' || typeof input === 'number' || typeof input === 'boolean') {
-        return typeof input;
-    } else if (Array.isArray(input)) {
-        if (input.length > 0) {
-            if (depth > maxDepth) return '[...]';
-
-            const first = _inspect(input[0], depth);
-
-            if (input.every(item => _inspect(item, depth) === first)) {
-                return first.trim() + '[]';
-            } else {
-                return '[' + input.slice(0, maxKeys).map(item => _inspect(item, depth)).join(', ') + (input.length >= maxKeys ? ', ...' : '') + ']';
-            }
-        } else {
-            return 'Array';
-        }
-    } else {
-        const keys = Object.keys(input);
-
-        if (!keys.length) {
-            if (input.constructor && input.constructor.name && input.constructor.name !== 'Object') {
-                return input.constructor.name;
-            } else {
-                return 'Object';
-            }
-        }
-
-        if (depth > maxDepth) return '{...}';
-        const indent = '  '.repeat(depth - 1);
-        let entries = keys.slice(0, maxKeys).map(key => {
-            return (/^([A-Z_$][A-Z0-9_$]*)$/i.test(key) ? key : JSON.stringify(key)) + ': ' + _inspect(input[key], depth) + ';';
-        }).join('\n  ' + indent);
-
-        if (keys.length >= maxKeys) {
-            entries += '\n  ' + indent + '...';
-        }
-
-        if (input.constructor && input.constructor.name && input.constructor.name !== 'Object') {
-            return input.constructor.name + ' {\n  ' + indent + entries + '\n' + indent + '}';
-        } else {
-            return '{\n  ' + indent + entries + '\n' + indent + '}';
-        }
-    }
-}
