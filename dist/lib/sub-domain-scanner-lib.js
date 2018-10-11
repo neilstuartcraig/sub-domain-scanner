@@ -72,7 +72,15 @@ async function isHostnameOrphanedDelegation(hostname) {
                         }
                     } catch (e) {
                         if (e.code === "EREFUSED") {
-                            return resolve(true); // ?
+
+                            // argh, cloudflare refuses "any" queries on some domains:
+                            /*
+                            HINFO	"ANY obsoleted" "See draft-ietf-dnsop-refuse-any"
+                            
+                            what do we do here?
+                            */
+
+                            return resolve(true); //?
                         }
                     }
                 }
