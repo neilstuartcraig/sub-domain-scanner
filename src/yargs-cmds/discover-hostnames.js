@@ -3,9 +3,6 @@
 import {EOL} from "os";
 import {getHostnamesFromCTLogs, filterHostnames} from "../lib/sub-domain-scanner-lib.js"; // NOTE: Path is relative to build dir (dist/) - local because lib is babel'd
 
-// // import necessary yargs options
-// import {GTMEnvironment, productEnvironment, GTMEdgeRegion, HTTPSProxy} from "../lib/functions/yargs-options.js";
-
 const domainNamesOpt = 
 {
     alias: ["domain-names", "domains", "dn"],

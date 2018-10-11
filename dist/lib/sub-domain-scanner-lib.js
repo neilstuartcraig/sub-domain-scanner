@@ -18,13 +18,83 @@ var _os = require("os");
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-// NOTE: Path is relative to build dir (dist/)
+const { Resolver } = require("dns").promises; // NOTE: Path is relative to build dir (dist/)
 
 const parser = new _rssParser2.default({
     customFields: {
         item: ["summary"]
     }
 });
+
+// Takes and array of hostnames, checks if they're orphaned DNS delegations (they have an NS record which is an NXDOMAIN), returns a boolean
+async function isHostnameOrphanedDelegation(hostname) {
+    if (!(typeof hostname === 'string')) {
+        throw new TypeError("Value of argument \"hostname\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(hostname));
+    }
+
+    return new Promise(async (resolve, reject) => {
+        try {
+            const resolver = new Resolver();
+
+            let nameservers = [];
+
+            try {
+                nameservers = await resolver.resolveNs(hostname);
+            } catch (e) {
+                if (e.code === "ENOTFOUND") {
+                    return resolve(false);
+                }
+            }
+
+            if (nameservers.length) {
+                if (!(nameservers && (typeof nameservers[Symbol.iterator] === 'function' || Array.isArray(nameservers)))) {
+                    throw new TypeError("Expected nameservers to be iterable, got " + _inspect(nameservers));
+                }
+
+                for (let nameserver of nameservers) {
+                    let nameserverIP = "";
+
+                    try // this requires a separate try/catch so that we can definitely determine that the NS DNS resolution fails
+                    {
+                        nameserverIP = await resolver.resolve4(nameserver);
+                    } catch (e) // If we end up here, the NS IP didn't resolve, thus there's a potential vulnerability if the NS (esp. if the NS hostname is remote)
+                    {
+                        return resolve(true); // NOTE: this will happen for either NXDOMAIN on the NS destination
+                    }
+
+                    resolver.setServers(nameserverIP);
+
+                    try {
+                        const records = await resolver.resolveAny(hostname);
+
+                        if (records.length) {
+                            return resolve(false); // NOTE: This will happen if the NS exists but has no records for the hostname
+                        }
+                    } catch (e) {
+                        if (e.code === "EREFUSED") {
+                            return resolve(true); // ?
+                        }
+                    }
+                }
+
+                return resolve(true);
+            }
+
+            return resolve(false);
+        } catch (e) {
+            // Some DNS queries will error but are not a problem, we'll handle those here
+            if (e.code === "ENODATA") // This happens when: hostname has no NS record
+                {
+                    resolve(false);
+                } else if (e.code === "ENOTFOUND") // This happens when: hostname is NXDOMAIN
+                {
+                    resolve(false);
+                }
+
+            return reject(e);
+        }
+    });
+}
 
 // Takes an array of hostnames and filters them to remove out of scope entries
 function filterHostnames(hostnames, mustMatch, mustNotMatch) {
@@ -171,7 +241,8 @@ module.exports = {
     getSANSFromCertificatesArray: getSANSFromCertificatesArray,
     getRSSURLFromHostname: getRSSURLFromHostname,
     getHostnamesFromCTLogs: getHostnamesFromCTLogs,
-    filterHostnames: filterHostnames
+    filterHostnames: filterHostnames,
+    isHostnameOrphanedDelegation: isHostnameOrphanedDelegation
 };
 
 function _inspect(input, depth) {
