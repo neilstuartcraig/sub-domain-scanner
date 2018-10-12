@@ -37,13 +37,19 @@ async function isHostnameOrphanedDelegation(hostname) {
             const resolver = new Resolver();
 
             let nameservers = [];
+            let SOA = {};
 
+            // Check if the hostname is delegated, exit early if not
             try {
                 nameservers = await resolver.resolveNs(hostname);
+                SOA = await resolver.resolveSoa(hostname);
+
+                console.dir(SOA);
             } catch (e) {
-                if (e.code === "ENOTFOUND") {
-                    return resolve(false);
-                }
+                if (e.code === "ENOTFOUND") // hostname is not delegated (there are no NSs or SOA)
+                    {
+                        return resolve(false);
+                    }
             }
 
             if (nameservers.length) {

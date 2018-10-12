@@ -45,11 +45,14 @@ let mod = {
 
             if (argv.hostnamesFile === "-") // use stdin
                 {
+                    console.log("stdin");
                     const stdin = await (0, _getStdin2.default)();
 
                     if (!(typeof stdin === 'string')) {
                         throw new TypeError("Value of variable \"stdin\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(stdin));
                     }
+
+                    console.dir(stdin);
 
                     if (stdin.length) {
                         const re = new RegExp(_os.EOL, "g");

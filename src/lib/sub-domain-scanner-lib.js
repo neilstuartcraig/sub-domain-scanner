@@ -2,6 +2,7 @@
 
 import {default as config} from "../../config/sub-domain-scanner-config.js"; // NOTE: Path is relative to build dir (dist/)
 
+import {default as assert} from "assert";
 import {escape} from "querystring";
 import {default as Parser} from "rss-parser";
 import {default as x509} from "x509-parser";
@@ -29,16 +30,26 @@ async function isHostnameOrphanedDelegation(hostname: string)
             const resolver = new Resolver();
 
             let nameservers = [];
-
+            let resolverSOA = {};
+console.log(`hostname to test: ${hostname}`);
+            // Check if the hostname _is_ delegated, exit early if not
             try
             {
                 nameservers = await resolver.resolveNs(hostname);
+                resolverSOA = await resolver.resolveSoa(hostname);          
             }
             catch(e)
             {
-                if(e.code === "ENOTFOUND")
+console.log("error on resolving hostname NS and SOA");                
+console.dir(e);                
+                if(e.code === "ENOTFOUND") // hostname is not delegated (there are no NSs or SOA)
                 {
                     return resolve(false);
+                }
+                else if(e.code === "ESERVFAIL") // This happens on an orphaned hostname e.g. ns-not-exists-local.thedotproduct.org which has non-existant NS destinations
+                {
+                    // is this always an orphaned sub-domain?
+                    return resolve(true);
                 }
             }
 
@@ -50,38 +61,53 @@ async function isHostnameOrphanedDelegation(hostname: string)
 
                     try // this requires a separate try/catch so that we can definitely determine that the NS DNS resolution fails
                     {
+
+// TODO:
+// this lookup fails for thedotproduct.org    
+// i think it's failing to resolve the NS IP against another NS IP - because the resolver.setServers(nameserverIP) leaves a lingerig change
+// could use 2x resolver instances? or maybe reset it?                  
+// you can't just resolver.setServers(); or resolver.setServers([]]); - those fail
+resolver.setServers(["8.8.8.8"]);
                         nameserverIP = await resolver.resolve4(nameserver);
+
+                        console.log(`setting NS to ${nameserverIP}`);                    
+resolver.setServers(nameserverIP);
+
+                        try
+                        {
+console.log(`querying NS: ${nameserverIP} for ${hostname}`);                        
+                            const nameserverSOA = await resolver.resolveSoa(hostname);
+console.log("NS SOA:");                        
+console.dir(nameserverSOA);
+console.log("RESOLVER SOA:");
+console.dir(resolverSOA);
+
+                            if(assert.deepStrictEqual(resolverSOA, nameserverSOA) === false)
+                            {
+console.log("NS SOA !== RSOA");          
+                                return resolve(true);
+                            }
+                            
+                        }
+                        catch(e)
+                        {
+console.log("ns query err:");                        
+console.dir(e);                        
+                            if(e.code === "ENOTFOUND")
+                            {
+                                return resolve(true); 
+                            }
+                        }
                     }
                     catch(e) // If we end up here, the NS IP didn't resolve, thus there's a potential vulnerability if the NS (esp. if the NS hostname is remote)
                     {
-                        return resolve(true); // NOTE: this will happen for either NXDOMAIN on the NS destination
-                    }
-
-                    resolver.setServers(nameserverIP);
-
-                    try
-                    {
-                        const records = await resolver.resolveAny(hostname);
-
-                        if(records.length)
+console.log(`error on resolving A record for NS ${nameserver}`);              
+// might be that the NS can't resolve itself?   
+console.dir(e);                     
+                        if(e.code === "ENOTFOUND")
                         {
-                            return resolve(false); // NOTE: This will happen if the NS exists but has no records for the hostname
-                        }
-                    }
-                    catch(e)
-                    {
-                        if(e.code === "EREFUSED")
-                        {
-
-
-// argh, cloudflare refuses "any" queries on some domains:
-/*
-HINFO	"ANY obsoleted" "See draft-ietf-dnsop-refuse-any"
-
-what do we do here?
-*/
-
-                            return resolve(true); //?
+// this is where test1 fails (if below is not commented out) - is there any reason we can confidently state here that the delegation _is_ orphaned?
+                            // return resolve(true); // NOTE: this will happen for  NXDOMAIN on the NS destination
                         }
                     }
                 }
