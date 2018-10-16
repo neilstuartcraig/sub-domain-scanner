@@ -72,22 +72,18 @@ async function isHostnameOrphanedDelegation(hostname: string)
             try
             {
                 nameservers = await mainResolver.resolveNs(hostname);
-                resolverSOA = await mainResolver.resolveSoa(hostname);          
             }
             catch(e)
             {
                 if(e.code === "ENOTFOUND") // hostname is not delegated (there are no NSs or no SOA)
                 {
-// TODO: #NSIsAnIP                   
-// need a check here to see if the NS is an IP address as those records will fail resolveNs() with ENOTFOUND
-// unsure how best to tackle this though, doesn't seem to be doable in node :-(
-
+                    // Check if the NS is an IP address as those records will fail resolveNs() with ENOTFOUND
                     return resolve(false);
                 }
                 else if(e.code === "ESERVFAIL") // This happens on an orphaned hostname e.g. ns-not-exists-local.thedotproduct.org which has non-existant NS destinations
                 {
                     // is this always an orphaned sub-domain?
-                    return resolve(true);
+                    return resolve(false);
                 }
             }
 
@@ -108,21 +104,48 @@ async function isHostnameOrphanedDelegation(hostname: string)
                         {
                             const nameserverSOA = await NSResolver.resolveSoa(hostname);
 
-                            if(assert.deepStrictEqual(resolverSOA, nameserverSOA) === false)
+                            if(assert.deepStrictEqual(resolverSOA, nameserverSOA) === false) // The SOA on the nameserver which the hostname points to has a mismatched SOA, thus it may be vulnerable
                             {
+console.log(`de fail ${nameserver}`);                                
                                 return resolve(true);
                             }
                         }
                         catch(e)
                         {
-                            if(e.code === "ENOTFOUND")
+console.log(`NS res fail ${nameserver}`);                            
+                            if(e.code === "ENOTFOUND") // The nameserver which the hostname points to has no SOA for the hostname (i.e. it doesn't have a zone for it)
                             {
                                 return resolve(true); 
                             }
                         }
                     }
-                    catch(e) // If we end up here, the NS IP didn't resolve, which could be a takeover vulnerability (if someone else owns the IP)
+                    catch(e) // If we end up here, the NS record didn't resolve, which could be a takeover vulnerability (if someone else owns the domain name)
                     {
+                        // Check if the nameserver IP is an IP address, if so, check if it's an "OK" IP address
+                        if(nameserver.match(/^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$/g))
+                        {
+// TODO:
+// use net.isIP / isIPv4 / isIPv6 instead of above
+// also pass in (optional) arrays of safe nameservers:
+    // IPv4
+    // ipv6
+    // hostnames (regex)
+
+// add CLI arg to pass ^ in, 3 separate files(?)
+
+// change output to an obj:
+/* 
+{
+    isVulnerable: <bool>,
+    reason: <string>,
+    severity: <enum/string low|medium|high>
+}
+amend tests accordingly
+*/
+
+                            return resolve(true);        
+                        }
+                 
                         return resolve(true);        
                     }
                 }
@@ -133,11 +156,11 @@ async function isHostnameOrphanedDelegation(hostname: string)
         catch(e)
         {
             // Some DNS queries will error but are not a problem, we'll handle those here
-            if(e.code === "ENODATA") // This happens when: hostname has no NS record
+            if(e.code === "ENODATA") // This happens when: hostname has no NS record (thus it cannot be vulnerable)
             {
                 return resolve(false);
             }
-            else if (e.code === "ENOTFOUND") // This happens when: hostname is NXDOMAIN
+            else if (e.code === "ENOTFOUND") // This happens when: hostname is NXDOMAIN (thus it cannot be vulnerable)
             {               
                 return resolve(false);
             }

@@ -45,7 +45,7 @@ TODO: Connvert the output of isHostnameOrphanedDelegation() to an obj:
     risk: [low|medium|high] (low: orphaned but points to own infra, med: oprhaned but ??, high: orphaned and points to e.g. R53/GDNS etc.)
 }
 
-newshub-live-mosdatastore.newsonline.tc.nca.bbc.co.uk is a SERVFAIL and flags as vulnerable but since it doesn't existm it isn't
+newshub-live-mosdatastore.newsonline.tc.nca.bbc.co.uk is a SERVFAIL and flags as vulnerable but since it doesn't exist, it isn't
     // might need to initially check if we get ESERVFAIL
 
 */
@@ -81,7 +81,9 @@ async function readFileContentsIntoArray(filename, separator = _os.EOL, fileEnco
                 throw new TypeError("Value of variable \"fileContent\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(fileContent));
             }
 
-            const output = fileContent.trim().split(separator);
+            const output = fileContent.trim().split(separator).filter(val => {
+                return val.length; // Filter out empty values
+            });
 
             if (!Array.isArray(output)) {
                 throw new TypeError("Value of variable \"output\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(output));
@@ -122,6 +124,7 @@ async function isHostnameOrphanedDelegation(hostname) {
                         return resolve(false);
                     } else if (e.code === "ESERVFAIL") // This happens on an orphaned hostname e.g. ns-not-exists-local.thedotproduct.org which has non-existant NS destinations
                     {
+                        console.log("SF");
                         // is this always an orphaned sub-domain?
                         return resolve(true);
                     }
