@@ -12,37 +12,61 @@ test("Correct operation, valid input (not vulnerable)", async (t) =>
     t.is(isOrphaned, false, "hostname must not show as orphaned");
 });
 
-// test("Correct operation, valid input (vulnerable, local)", async (t) => 
-// {
-//     const hostname = "ns-not-exists-local.thedotproduct.org";
+test("Correct operation, valid input (vulnerable, local)", async (t) => 
+{
+    const hostname = "ns-not-exists-local.thedotproduct.org";
 
-//     const isOrphaned: boolean = await isHostnameOrphanedDelegation(hostname);
+    const isOrphaned: boolean = await isHostnameOrphanedDelegation(hostname);
     
-//     t.is(isOrphaned, true, "hostname must show as orphaned");
-// });
+    t.is(isOrphaned, true, "hostname must show as orphaned");
+});
 
-// test("Correct operation, valid input (vulnerable, remote)", async (t) => 
-// {
-//     const hostname = "ns-not-exists-remote.thedotproduct.org";
+test("Correct operation, valid input (vulnerable, remote)", async (t) => 
+{
+    const hostname = "ns-not-exists-remote.thedotproduct.org";
 
-//     const isOrphaned: boolean = await isHostnameOrphanedDelegation(hostname);
+    const isOrphaned: boolean = await isHostnameOrphanedDelegation(hostname);
     
-//     t.is(isOrphaned, true, "hostname must show as orphaned");
-// });
+    t.is(isOrphaned, true, "hostname must show as orphaned");
+});
 
-// test("Correct operation, valid input (not delegated)", async (t) => 
-// {
-//     const hostname = "www.thedotproduct.org";
+test("Correct operation, valid input (not delegated)", async (t) => 
+{
+    const hostname = "www.thedotproduct.org";
 
-//     const isOrphaned: boolean = await isHostnameOrphanedDelegation(hostname);
+    const isOrphaned: boolean = await isHostnameOrphanedDelegation(hostname);
     
-//     t.is(isOrphaned, false, "must not error");
-// });
+    t.is(isOrphaned, false, "must not error");
+});
 
-// test("Correct operation, invalid input (NXDOMAIN on hostname)", async (t) => 
+test("Correct operation, invalid input (NXDOMAIN on hostname)", async (t) => 
+{
+    // NOTE: whilst this is potentially vulnerable to SDT, it's not vulnerable as an orphaned delegation
+    const hostname = "www.theresnowaythisdomainwilleverexistinthewholeworld.tldwhichdoesntexist";
+
+    const isOrphaned: boolean = await isHostnameOrphanedDelegation(hostname);
+    
+    t.is(isOrphaned, false, "must not error");
+});
+
+test("Correct operation, invalid input (orphaned/BBCx2)", async (t) => 
+{
+    // NOTE: whilst this is potentially vulnerable to SDT, it's not vulnerable as an orphaned delegation
+    const hostname = "beeb.thedotproduct.org";
+
+    const isOrphaned: boolean = await isHostnameOrphanedDelegation(hostname);
+    
+    t.is(isOrphaned, true, "must not error");
+});
+
+
+// TODO:
+// Sort this out, see comment: "#NSIsAnIP" is isHostnameOrphanedDelegation()
+// Problem with Node DNS lib not returning NSs which are IPs
+// test("Correct operation, invalid input (NS is an IP address which isn't a nameserver)", async (t) => 
 // {
 //     // NOTE: whilst this is potentially vulnerable to SDT, it's not vulnerable as an orphaned delegation
-//     const hostname = "www.theresnowaythisdomainwilleverexistinthewholeworld.tldwhichdoesntexist";
+//     const hostname = "ns-is-ip-not-an-ns.thedotproduct.org";
 
 //     const isOrphaned: boolean = await isHostnameOrphanedDelegation(hostname);
     

@@ -3,7 +3,8 @@
 import {EOL} from "os";
 import {default as getstdin} from "get-stdin";
 
-import {isHostnameOrphanedDelegation} from "../lib/sub-domain-scanner-lib.js"; // NOTE: Path is relative to build dir (dist/) - local because lib is babel'd
+
+import {isHostnameOrphanedDelegation, readFileContentsIntoArray} from "../lib/sub-domain-scanner-lib.js"; // NOTE: Path is relative to build dir (dist/) - local because lib is babel'd
 
 const hostnamesFileOpt = 
 {
@@ -39,7 +40,7 @@ let mod =
             // check if CNAME to 3rd party host and !configured (S3 etc), medium: missing all entries in array of strings (arg) (i.e. pointing to outdated dest) - could maybe do via a scoring system. could check if has TLS cert not owned by main site owner but that should show in CT
             // check if A/AAAA to IP not controlled by owner and not responds
 
-            let hostnames = [];
+            let hostnames: Array = [];
 
             if(argv.hostnamesFile === "-") // use stdin
             {
@@ -57,17 +58,27 @@ let mod =
                 }
             }
             else // use file
-            {
-                // read file in from disk + make an array
+            {           
+                try
+                {
+                    // read file in from disk + make an array
+                    hostnames = await readFileContentsIntoArray(argv.hostnamesFile);
+                }
+                catch(e)
+                {
+                    // TODO: Handle errors in a more friendly way
+                    console.error(e);
+                    process.exit(1);
+                }
             }
-
-// run the test hostnames ting here
-console.dir(hostnames);              
-
+console.dir(hostnames);
             for(let hostname of hostnames)
             {
                 const isVulnerableDelegation = await isHostnameOrphanedDelegation(hostname);
+// if(isVulnerableDelegation)
+// {
 console.log(`${hostname} - vuln? ${isVulnerableDelegation}`);                
+// }
             }
 
             // console.log(output);

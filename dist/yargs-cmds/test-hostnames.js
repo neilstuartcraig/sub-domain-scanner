@@ -39,34 +39,42 @@ let mod = {
             // check if sub-domain has NS
             //  y: check if orphaned delegation (e.g. dig ns <domain> and check for records then for each NS, dig@<NS> an <domain> and check for NXDOMAIN)
             // check if CNAME to 3rd party host and !configured (S3 etc), medium: missing all entries in array of strings (arg) (i.e. pointing to outdated dest) - could maybe do via a scoring system. could check if has TLS cert not owned by main site owner but that should show in CT
-            // check if A/AAAA to IP not controlled by owner and not responds
-
             let hostnames = [];
 
             if (argv.hostnamesFile === "-") // use stdin
                 {
-                    console.log("stdin");
                     const stdin = await (0, _getStdin2.default)();
 
                     if (!(typeof stdin === 'string')) {
                         throw new TypeError("Value of variable \"stdin\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(stdin));
                     }
 
-                    console.dir(stdin);
-
                     if (stdin.length) {
                         const re = new RegExp(_os.EOL, "g");
                         hostnames = stdin.trim().replace(re, " ").split(" "); // We have to replace newlines with space because the output from discover-hostnames is newline-separated      
+
+                        if (!Array.isArray(hostnames)) {
+                            throw new TypeError("Value of variable \"hostnames\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(hostnames));
+                        }
                     } else {
                         console.error("Please supply a space-separated list of hostnames to test");
                         process.exit(1);
                     }
                 } else // use file
-                {}
-                // read file in from disk + make an array
+                {
+                    try {
+                        // read file in from disk + make an array
+                        hostnames = await (0, _subDomainScannerLib.readFileContentsIntoArray)(argv.hostnamesFile);
 
-
-                // run the test hostnames ting here
+                        if (!Array.isArray(hostnames)) {
+                            throw new TypeError("Value of variable \"hostnames\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(hostnames));
+                        }
+                    } catch (e) {
+                        // TODO: Handle errors in a more friendly way
+                        console.error(e);
+                        process.exit(1);
+                    }
+                }
             console.dir(hostnames);
 
             if (!(hostnames && (typeof hostnames[Symbol.iterator] === 'function' || Array.isArray(hostnames)))) {
@@ -75,7 +83,10 @@ let mod = {
 
             for (let hostname of hostnames) {
                 const isVulnerableDelegation = await (0, _subDomainScannerLib.isHostnameOrphanedDelegation)(hostname);
+                // if(isVulnerableDelegation)
+                // {
                 console.log(`${hostname} - vuln? ${isVulnerableDelegation}`);
+                // }
             }
 
             // console.log(output);

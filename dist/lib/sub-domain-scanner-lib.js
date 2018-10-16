@@ -4,6 +4,10 @@ var _subDomainScannerConfig = require("../../config/sub-domain-scanner-config.js
 
 var _subDomainScannerConfig2 = _interopRequireDefault(_subDomainScannerConfig);
 
+var _assert = require("assert");
+
+var _assert2 = _interopRequireDefault(_assert);
+
 var _querystring = require("querystring");
 
 var _rssParser = require("rss-parser");
@@ -14,17 +18,81 @@ var _x509Parser = require("x509-parser");
 
 var _x509Parser2 = _interopRequireDefault(_x509Parser);
 
+var _path = require("path");
+
 var _os = require("os");
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-const { Resolver } = require("dns").promises; // NOTE: Path is relative to build dir (dist/)
+// NOTE: Path is relative to build dir (dist/)
+
+const { Resolver } = require("dns").promises;
+
+const fsp = require("fs").promises;
+
 
 const parser = new _rssParser2.default({
     customFields: {
         item: ["summary"]
     }
 });
+
+/*
+
+TODO: Connvert the output of isHostnameOrphanedDelegation() to an obj:
+{
+    isOrphanedDelegation: Boolean,
+    risk: [low|medium|high] (low: orphaned but points to own infra, med: oprhaned but ??, high: orphaned and points to e.g. R53/GDNS etc.)
+}
+
+newshub-live-mosdatastore.newsonline.tc.nca.bbc.co.uk is a SERVFAIL and flags as vulnerable but since it doesn't existm it isn't
+    // might need to initially check if we get ESERVFAIL
+
+*/
+
+async function readFileContentsIntoArray(filename, separator = _os.EOL, fileEncoding = "utf8", outputCharset = "utf8") {
+    if (!(typeof filename === 'string')) {
+        throw new TypeError("Value of argument \"filename\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(filename));
+    }
+
+    if (!(typeof separator === 'string')) {
+        throw new TypeError("Value of argument \"separator\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(separator));
+    }
+
+    if (!(typeof fileEncoding === 'string')) {
+        throw new TypeError("Value of argument \"fileEncoding\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(fileEncoding));
+    }
+
+    if (!(typeof outputCharset === 'string')) {
+        throw new TypeError("Value of argument \"outputCharset\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(outputCharset));
+    }
+
+    return new Promise(async (resolve, reject) => {
+        try {
+            const filenameAndPath = (0, _path.resolve)(filename);
+
+            if (!(typeof filenameAndPath === 'string')) {
+                throw new TypeError("Value of variable \"filenameAndPath\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(filenameAndPath));
+            }
+
+            const fileContent = await fsp.readFile(filenameAndPath, fileEncoding);
+
+            if (!(typeof fileContent === 'string')) {
+                throw new TypeError("Value of variable \"fileContent\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(fileContent));
+            }
+
+            const output = fileContent.trim().split(separator);
+
+            if (!Array.isArray(output)) {
+                throw new TypeError("Value of variable \"output\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(output));
+            }
+
+            return resolve(output);
+        } catch (e) {
+            reject(e);
+        }
+    });
+}
 
 // Takes and array of hostnames, checks if they're orphaned DNS delegations (they have an NS record which is an NXDOMAIN), returns a boolean
 async function isHostnameOrphanedDelegation(hostname) {
@@ -34,21 +102,28 @@ async function isHostnameOrphanedDelegation(hostname) {
 
     return new Promise(async (resolve, reject) => {
         try {
-            const resolver = new Resolver();
+            const mainResolver = new Resolver();
+            const NSResolver = new Resolver();
 
             let nameservers = [];
-            let SOA = {};
+            let resolverSOA = {};
 
-            // Check if the hostname is delegated, exit early if not
+            // Check if the hostname _is_ delegated, exit early if not
             try {
-                nameservers = await resolver.resolveNs(hostname);
-                SOA = await resolver.resolveSoa(hostname);
-
-                console.dir(SOA);
+                nameservers = await mainResolver.resolveNs(hostname);
+                resolverSOA = await mainResolver.resolveSoa(hostname);
             } catch (e) {
-                if (e.code === "ENOTFOUND") // hostname is not delegated (there are no NSs or SOA)
+                if (e.code === "ENOTFOUND") // hostname is not delegated (there are no NSs or no SOA)
                     {
+                        // TODO: #NSIsAnIP                   
+                        // need a check here to see if the NS is an IP address as those records will fail resolveNs() with ENOTFOUND
+                        // unsure how best to tackle this though, doesn't seem to be doable in node :-(
+
                         return resolve(false);
+                    } else if (e.code === "ESERVFAIL") // This happens on an orphaned hostname e.g. ns-not-exists-local.thedotproduct.org which has non-existant NS destinations
+                    {
+                        // is this always an orphaned sub-domain?
+                        return resolve(true);
                     }
             }
 
@@ -62,36 +137,27 @@ async function isHostnameOrphanedDelegation(hostname) {
 
                     try // this requires a separate try/catch so that we can definitely determine that the NS DNS resolution fails
                     {
-                        nameserverIP = await resolver.resolve4(nameserver);
-                    } catch (e) // If we end up here, the NS IP didn't resolve, thus there's a potential vulnerability if the NS (esp. if the NS hostname is remote)
+                        // We'll directly query the nameserver below, for which we need the IP as setServers doesn't accept a hostname
+                        // At some point, we'll need to also/instead use IPv6 resolution, but I CBA right now
+                        nameserverIP = await mainResolver.resolve4(nameserver);
+                        NSResolver.setServers(nameserverIP);
+
+                        try {
+                            const nameserverSOA = await NSResolver.resolveSoa(hostname);
+
+                            if (_assert2.default.deepStrictEqual(resolverSOA, nameserverSOA) === false) {
+                                return resolve(true);
+                            }
+                        } catch (e) {
+                            if (e.code === "ENOTFOUND") {
+                                return resolve(true);
+                            }
+                        }
+                    } catch (e) // If we end up here, the NS IP didn't resolve, which could be a takeover vulnerability (if someone else owns the IP)
                     {
-                        return resolve(true); // NOTE: this will happen for either NXDOMAIN on the NS destination
-                    }
-
-                    resolver.setServers(nameserverIP);
-
-                    try {
-                        const records = await resolver.resolveAny(hostname);
-
-                        if (records.length) {
-                            return resolve(false); // NOTE: This will happen if the NS exists but has no records for the hostname
-                        }
-                    } catch (e) {
-                        if (e.code === "EREFUSED") {
-
-                            // argh, cloudflare refuses "any" queries on some domains:
-                            /*
-                            HINFO	"ANY obsoleted" "See draft-ietf-dnsop-refuse-any"
-                            
-                            what do we do here?
-                            */
-
-                            return resolve(true); //?
-                        }
+                        return resolve(true);
                     }
                 }
-
-                return resolve(true);
             }
 
             return resolve(false);
@@ -99,10 +165,10 @@ async function isHostnameOrphanedDelegation(hostname) {
             // Some DNS queries will error but are not a problem, we'll handle those here
             if (e.code === "ENODATA") // This happens when: hostname has no NS record
                 {
-                    resolve(false);
+                    return resolve(false);
                 } else if (e.code === "ENOTFOUND") // This happens when: hostname is NXDOMAIN
                 {
-                    resolve(false);
+                    return resolve(false);
                 }
 
             return reject(e);
@@ -256,7 +322,8 @@ module.exports = {
     getRSSURLFromHostname: getRSSURLFromHostname,
     getHostnamesFromCTLogs: getHostnamesFromCTLogs,
     filterHostnames: filterHostnames,
-    isHostnameOrphanedDelegation: isHostnameOrphanedDelegation
+    isHostnameOrphanedDelegation: isHostnameOrphanedDelegation,
+    readFileContentsIntoArray: readFileContentsIntoArray
 };
 
 function _inspect(input, depth) {

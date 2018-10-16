@@ -1,0 +1,4 @@
+www.example.com
+example.com
+example.org
+www.example.co.uk

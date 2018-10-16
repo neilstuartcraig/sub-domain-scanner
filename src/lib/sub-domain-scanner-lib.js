@@ -8,7 +8,8 @@ import {default as Parser} from "rss-parser";
 import {default as x509} from "x509-parser";
 
 const {Resolver} = require("dns").promises;
-
+import {resolve as resolvePaths} from "path";
+const fsp = require("fs").promises;
 import {EOL} from "os";
 
 const parser = new Parser(
@@ -20,6 +21,40 @@ const parser = new Parser(
 });
 
 
+/*
+
+TODO: Connvert the output of isHostnameOrphanedDelegation() to an obj:
+{
+    isOrphanedDelegation: Boolean,
+    risk: [low|medium|high] (low: orphaned but points to own infra, med: oprhaned but ??, high: orphaned and points to e.g. R53/GDNS etc.)
+}
+
+newshub-live-mosdatastore.newsonline.tc.nca.bbc.co.uk is a SERVFAIL and flags as vulnerable but since it doesn't exist, it isn't
+    // might need to initially check if we get ESERVFAIL
+
+*/
+
+async function readFileContentsIntoArray(filename: string, separator: string = EOL, fileEncoding: string = "utf8", outputCharset: string = "utf8")
+{
+    return new Promise(async (resolve, reject) => 
+    {
+        try
+        {
+            const filenameAndPath: string = resolvePaths(filename);
+            const fileContent: string = await fsp.readFile(filenameAndPath, fileEncoding);
+            const output: Array = fileContent.trim().split(separator).filter((val) => 
+            {
+                return val.length; // Filter out empty values
+            });
+            return resolve(output);
+        }
+        catch(e)
+        {
+            reject(e);
+        }
+    });
+}
+
 // Takes and array of hostnames, checks if they're orphaned DNS delegations (they have an NS record which is an NXDOMAIN), returns a boolean
 async function isHostnameOrphanedDelegation(hostname: string)
 {
@@ -27,23 +62,26 @@ async function isHostnameOrphanedDelegation(hostname: string)
     {
         try
         {
-            const resolver = new Resolver();
+            const mainResolver = new Resolver();
+            const NSResolver = new Resolver();
 
             let nameservers = [];
             let resolverSOA = {};
-console.log(`hostname to test: ${hostname}`);
+
             // Check if the hostname _is_ delegated, exit early if not
             try
             {
-                nameservers = await resolver.resolveNs(hostname);
-                resolverSOA = await resolver.resolveSoa(hostname);          
+                nameservers = await mainResolver.resolveNs(hostname);
+                resolverSOA = await mainResolver.resolveSoa(hostname);          
             }
             catch(e)
             {
-console.log("error on resolving hostname NS and SOA");                
-console.dir(e);                
-                if(e.code === "ENOTFOUND") // hostname is not delegated (there are no NSs or SOA)
+                if(e.code === "ENOTFOUND") // hostname is not delegated (there are no NSs or no SOA)
                 {
+// TODO: #NSIsAnIP                   
+// need a check here to see if the NS is an IP address as those records will fail resolveNs() with ENOTFOUND
+// unsure how best to tackle this though, doesn't seem to be doable in node :-(
+
                     return resolve(false);
                 }
                 else if(e.code === "ESERVFAIL") // This happens on an orphaned hostname e.g. ns-not-exists-local.thedotproduct.org which has non-existant NS destinations
@@ -61,58 +99,33 @@ console.dir(e);
 
                     try // this requires a separate try/catch so that we can definitely determine that the NS DNS resolution fails
                     {
-
-// TODO:
-// this lookup fails for thedotproduct.org    
-// i think it's failing to resolve the NS IP against another NS IP - because the resolver.setServers(nameserverIP) leaves a lingerig change
-// could use 2x resolver instances? or maybe reset it?                  
-// you can't just resolver.setServers(); or resolver.setServers([]]); - those fail
-resolver.setServers(["8.8.8.8"]);
-                        nameserverIP = await resolver.resolve4(nameserver);
-
-                        console.log(`setting NS to ${nameserverIP}`);                    
-resolver.setServers(nameserverIP);
+                        // We'll directly query the nameserver below, for which we need the IP as setServers doesn't accept a hostname
+                        // At some point, we'll need to also/instead use IPv6 resolution, but I CBA right now
+                        nameserverIP = await mainResolver.resolve4(nameserver);
+                        NSResolver.setServers(nameserverIP);
 
                         try
                         {
-console.log(`querying NS: ${nameserverIP} for ${hostname}`);                        
-                            const nameserverSOA = await resolver.resolveSoa(hostname);
-console.log("NS SOA:");                        
-console.dir(nameserverSOA);
-console.log("RESOLVER SOA:");
-console.dir(resolverSOA);
+                            const nameserverSOA = await NSResolver.resolveSoa(hostname);
 
                             if(assert.deepStrictEqual(resolverSOA, nameserverSOA) === false)
                             {
-console.log("NS SOA !== RSOA");          
                                 return resolve(true);
                             }
-                            
                         }
                         catch(e)
                         {
-console.log("ns query err:");                        
-console.dir(e);                        
                             if(e.code === "ENOTFOUND")
                             {
                                 return resolve(true); 
                             }
                         }
                     }
-                    catch(e) // If we end up here, the NS IP didn't resolve, thus there's a potential vulnerability if the NS (esp. if the NS hostname is remote)
+                    catch(e) // If we end up here, the NS IP didn't resolve, which could be a takeover vulnerability (if someone else owns the IP)
                     {
-console.log(`error on resolving A record for NS ${nameserver}`);              
-// might be that the NS can't resolve itself?   
-console.dir(e);                     
-                        if(e.code === "ENOTFOUND")
-                        {
-// this is where test1 fails (if below is not commented out) - is there any reason we can confidently state here that the delegation _is_ orphaned?
-                            // return resolve(true); // NOTE: this will happen for  NXDOMAIN on the NS destination
-                        }
+                        return resolve(true);        
                     }
                 }
-
-                return resolve(true);
             }
 
             return resolve(false);
@@ -122,11 +135,11 @@ console.dir(e);
             // Some DNS queries will error but are not a problem, we'll handle those here
             if(e.code === "ENODATA") // This happens when: hostname has no NS record
             {
-                resolve(false);
+                return resolve(false);
             }
             else if (e.code === "ENOTFOUND") // This happens when: hostname is NXDOMAIN
             {               
-                resolve(false);
+                return resolve(false);
             }
 
             return reject(e);
@@ -236,5 +249,6 @@ module.exports =
     getRSSURLFromHostname: getRSSURLFromHostname,
     getHostnamesFromCTLogs: getHostnamesFromCTLogs,
     filterHostnames: filterHostnames,
-    isHostnameOrphanedDelegation:isHostnameOrphanedDelegation 
+    isHostnameOrphanedDelegation:isHostnameOrphanedDelegation,
+    readFileContentsIntoArray: readFileContentsIntoArray
 };
