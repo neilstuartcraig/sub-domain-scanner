@@ -11,6 +11,7 @@ const {Resolver} = require("dns").promises;
 import {resolve as resolvePaths} from "path";
 const fsp = require("fs").promises;
 import {EOL} from "os";
+import {isIP} from "net";
 
 const parser = new Parser(
 {
@@ -148,10 +149,10 @@ async function isHostnameOrphanedDelegation(hostname: string)
                     catch(e) // If we end up here, the NS record didn't resolve, which could be a takeover vulnerability (if someone else owns the domain name)
                     {
                         // Check if the nameserver IP is an IP address, if so, check if it's an "OK" IP address
-                        if(nameserver.match(/^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$/g))
+                        // if(nameserver.match(/^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$/g))
+                        if(isIP(nameserver))
                         {
 // TODO:
-// use net.isIP / isIPv4 / isIPv6 instead of above
 // also pass in (optional) arrays of safe nameservers:
     // IPv4
     // ipv6
@@ -159,15 +160,6 @@ async function isHostnameOrphanedDelegation(hostname: string)
 
 // add CLI arg to pass ^ in, 3 separate files(?)
 
-// change output to an obj:
-/* 
-{
-    isVulnerable: <bool>,
-    reason: <string>,
-    severity: <enum/string low|medium|high>
-}
-amend tests accordingly
-*/
 
                             response.reason = `Nameserver ${nameserver} (IP address) does not resolve`;
                             response.reasonCode = "IP_NS_DOESNT_RESOLVE";
