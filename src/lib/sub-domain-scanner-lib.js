@@ -6,12 +6,13 @@ import {default as assert} from "assert";
 import {escape} from "querystring";
 import {default as Parser} from "rss-parser";
 import {default as x509} from "x509-parser";
+import {default as IPRangeCheck} from "ip-range-check";
 
 const {Resolver} = require("dns").promises;
 import {resolve as resolvePaths} from "path";
 const fsp = require("fs").promises;
 import {EOL} from "os";
-import {isIP} from "net";
+import {isIP, isIPv4, isIPv6} from "net";
 
 const parser = new Parser(
 {
@@ -57,8 +58,9 @@ async function readFileContentsIntoArray(filename: string, separator: string = E
 }
 
 // Takes and array of hostnames, checks if they're orphaned DNS delegations (they have an NS record which is an NXDOMAIN), returns a boolean
-async function isHostnameOrphanedDelegation(hostname: string)
+async function isHostnameOrphanedDelegation(hostname: string, safeNameservers: Object = {})
 {
+// TODO: Refactor this into sub-functions, this is to looooooong    
     return new Promise(async (resolve, reject) => 
     {
         const response = 
@@ -149,7 +151,6 @@ async function isHostnameOrphanedDelegation(hostname: string)
                     catch(e) // If we end up here, the NS record didn't resolve, which could be a takeover vulnerability (if someone else owns the domain name)
                     {
                         // Check if the nameserver IP is an IP address, if so, check if it's an "OK" IP address
-                        // if(nameserver.match(/^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$/g))
                         if(isIP(nameserver))
                         {
 // TODO:
@@ -159,6 +160,41 @@ async function isHostnameOrphanedDelegation(hostname: string)
     // hostnames (regex)
 
 // add CLI arg to pass ^ in, 3 separate files(?)
+                            if(isIPv4(nameserver))
+                            {                          
+                                if(safeNameservers.ipv4)
+                                {
+                                    for(let safeIP of safeNameservers.ipv4)
+                                    {
+                                        const safe = IPRangeCheck(nameserver, safeIP);
+                                        if(safe)
+                                        {
+                                            response.reason = `${hostname} is delegated to IP-based nameserver but it's on the IPv4 safe list`;
+                                            response.reasonCode = "IP_NS_ON_V4_SAFE_LIST";
+                                            response.vulnerable = false;
+                                            return resolve(response);
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            if(isIPv6(nameserver))
+                            {
+                                if(safeNameservers.ipv6)
+                                {
+                                    for(let safeIP of safeNameservers.ipv4)
+                                    {
+                                        const safe = IPRangeCheck(nameserver, safeIP);
+                                        if(safe)
+                                        {
+                                            response.reason = `${hostname} is delegated to IP-based nameserver but it's on the IPv6 safe list`;
+                                            response.reasonCode = "IP_NS_ON_V6_SAFE_LIST";
+                                            response.vulnerable = false;
+                                            return resolve(response);
+                                        }
+                                    }
+                                }
+                            }
 
 
                             response.reason = `Nameserver ${nameserver} (IP address) does not resolve`;

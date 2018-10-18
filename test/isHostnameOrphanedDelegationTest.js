@@ -73,3 +73,63 @@ test("Correct operation, invalid input (NS is an IP address)", async (t) =>
     t.is(isOrphaned.vulnerable, true, "must be marked as vulnerable");
     t.is(isOrphaned.reasonCode, "IP_NS_DOESNT_RESOLVE", "reasonCode must be IP_NS_DOESNT_RESOLVE");
 });
+
+test("Correct operation, valid input (NS is an IP address but is on v4 safe list - single)", async (t) => 
+{
+    // NOTE: whilst this is potentially vulnerable to SDT, it's not vulnerable as an orphaned delegation
+    const hostname = "ns-is-ip-on-v4-safe-list.thedotproduct.org";
+    const safeNameservers = 
+    {
+        ipv4: ["5.5.5.5/32"]
+    };  
+
+    const isOrphaned: Object = await isHostnameOrphanedDelegation(hostname, safeNameservers);
+
+    t.is(isOrphaned.vulnerable, false, "must not be marked as vulnerable");
+    t.is(isOrphaned.reasonCode, "IP_NS_ON_V4_SAFE_LIST", "reasonCode must be IP_NS_ON_V4_SAFE_LIST");
+});
+
+test("Correct operation, valid input (NS is an IP address but is on v4 safe list - range)", async (t) => 
+{
+    // NOTE: whilst this is potentially vulnerable to SDT, it's not vulnerable as an orphaned delegation
+    const hostname = "ns-is-ip-on-v4-safe-list.thedotproduct.org";
+    const safeNameservers = 
+    {
+        ipv4: ["5.0.0.0/8"]
+    };  
+
+    const isOrphaned: Object = await isHostnameOrphanedDelegation(hostname, safeNameservers);
+
+    t.is(isOrphaned.vulnerable, false, "must not be marked as vulnerable");
+    t.is(isOrphaned.reasonCode, "IP_NS_ON_V4_SAFE_LIST", "reasonCode must be IP_NS_ON_V4_SAFE_LIST");
+});
+
+test("Correct operation, valid input (NS is an IP address but is on v6 safe list - single)", async (t) => 
+{
+    // NOTE: whilst this is potentially vulnerable to SDT, it's not vulnerable as an orphaned delegation
+    const hostname = "ns-is-ip-on-v6-safe-list.thedotproduct.org";
+    const safeNameservers = 
+    {
+        ipv6: ["::1"]
+    };  
+
+    const isOrphaned: Object = await isHostnameOrphanedDelegation(hostname, safeNameservers);
+
+    t.is(isOrphaned.vulnerable, false, "must not be marked as vulnerable");
+    t.is(isOrphaned.reasonCode, "IP_NS_ON_V6_SAFE_LIST", "reasonCode must be IP_NS_ON_V6_SAFE_LIST");
+});
+
+test("Correct operation, valid input (NS is an IP address but is on v6 safe list - range)", async (t) => 
+{
+    // NOTE: whilst this is potentially vulnerable to SDT, it's not vulnerable as an orphaned delegation
+    const hostname = "ns-is-ip-on-v6-safe-list.thedotproduct.org";
+    const safeNameservers = 
+    {
+        ipv6: ["::1/128"]
+    };  
+
+    const isOrphaned: Object = await isHostnameOrphanedDelegation(hostname, safeNameservers);
+
+    t.is(isOrphaned.vulnerable, false, "must not be marked as vulnerable");
+    t.is(isOrphaned.reasonCode, "IP_NS_ON_V6_SAFE_LIST", "reasonCode must be IP_NS_ON_V6_SAFE_LIST");
+});
