@@ -126,13 +126,21 @@ async function isHostnameOrphanedDelegation(hostname: string)
                             }
                         }
                         catch(e)
-                        {                      
+                        {            
                             if(e.code === "ENOTFOUND") // The nameserver which the hostname points to has no SOA for the hostname (i.e. it doesn't have a zone for it)
                             {
                                 response.reason = `Nameserver ${nameserver} has no SOA record for ${hostname}`;
                                 response.reasonCode = "NS_HAS_NO_SOA";
                                 response.vulnerable = true;
                                 response.severity = "MEDIUM"; // Should this be "LOW"?
+                                return resolve(response);
+                            }
+                            else if(e.code === "ESERVFAIL") // The nameserver which the hostname points to has no records for the hostname (i.e. it doesn't have a zone for it)
+                            {
+                                response.reason = `Nameserver ${nameserver} has no records for ${hostname}`;
+                                response.reasonCode = "NS_HAS_NO_RECORDS";
+                                response.vulnerable = true;
+                                response.severity = "HIGH"; // Should this be "LOW"?
                                 return resolve(response);
                             }
                         }
@@ -177,8 +185,8 @@ amend tests accordingly
                 }
             }
 
-            response.reason = `${hostname} is not vulnerable via DNS delegation`;
-            response.reasonCode = "HOSTNAME_NOT_VULNERABLE";
+            response.reason = `${hostname} is not delegated`;
+            response.reasonCode = "HOSTNAME_NOT_DELEGATED";
             return resolve(response);
         }
         catch(e)

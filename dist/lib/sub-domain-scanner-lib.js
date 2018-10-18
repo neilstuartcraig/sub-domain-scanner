@@ -103,6 +103,13 @@ async function isHostnameOrphanedDelegation(hostname) {
     }
 
     return new Promise(async (resolve, reject) => {
+        const response = {
+            vulnerable: false,
+            reasonCode: "",
+            reason: "",
+            severity: ""
+        };
+
         try {
             const mainResolver = new Resolver();
             const NSResolver = new Resolver();
@@ -113,20 +120,19 @@ async function isHostnameOrphanedDelegation(hostname) {
             // Check if the hostname _is_ delegated, exit early if not
             try {
                 nameservers = await mainResolver.resolveNs(hostname);
-                resolverSOA = await mainResolver.resolveSoa(hostname);
             } catch (e) {
                 if (e.code === "ENOTFOUND") // hostname is not delegated (there are no NSs or no SOA)
                     {
-                        // TODO: #NSIsAnIP                   
-                        // need a check here to see if the NS is an IP address as those records will fail resolveNs() with ENOTFOUND
-                        // unsure how best to tackle this though, doesn't seem to be doable in node :-(
-
-                        return resolve(false);
+                        // Check if the NS is an IP address as those records will fail resolveNs() with ENOTFOUND
+                        response.reason = `${hostname} is not delegated`;
+                        response.reasonCode = "HOSTNAME_NOT_DELEGATED";
+                        return resolve(response);
                     } else if (e.code === "ESERVFAIL") // This happens on an orphaned hostname e.g. ns-not-exists-local.thedotproduct.org which has non-existant NS destinations
                     {
-                        console.log("SF");
                         // is this always an orphaned sub-domain?
-                        return resolve(true);
+                        response.reason = `No nameservers found in DNS for ${hostname}`;
+                        response.reasonCode = "HOSTNAME_NS_SERVFAIL";
+                        return resolve(response);
                     }
             }
 
@@ -148,30 +154,78 @@ async function isHostnameOrphanedDelegation(hostname) {
                         try {
                             const nameserverSOA = await NSResolver.resolveSoa(hostname);
 
-                            if (_assert2.default.deepStrictEqual(resolverSOA, nameserverSOA) === false) {
-                                return resolve(true);
-                            }
+                            if (_assert2.default.deepStrictEqual(resolverSOA, nameserverSOA) === false) // The SOA on the nameserver which the hostname points to has a mismatched SOA, thus it may be vulnerable
+                                {
+                                    response.reason = `Nameserver ${nameserver} has a mismatched (versus other nameservers) SOA record for ${hostname}`;
+                                    response.reasonCode = "NS_HAS_MISMATCHED_SOA";
+                                    response.vulnerable = true;
+                                    response.severity = "MEDIUM"; // Should this be "LOW"?
+                                    return resolve(response);
+                                }
                         } catch (e) {
-                            if (e.code === "ENOTFOUND") {
-                                return resolve(true);
-                            }
+                            if (e.code === "ENOTFOUND") // The nameserver which the hostname points to has no SOA for the hostname (i.e. it doesn't have a zone for it)
+                                {
+                                    response.reason = `Nameserver ${nameserver} has no SOA record for ${hostname}`;
+                                    response.reasonCode = "NS_HAS_NO_SOA";
+                                    response.vulnerable = true;
+                                    response.severity = "MEDIUM"; // Should this be "LOW"?
+                                    return resolve(response);
+                                }
                         }
-                    } catch (e) // If we end up here, the NS IP didn't resolve, which could be a takeover vulnerability (if someone else owns the IP)
+                    } catch (e) // If we end up here, the NS record didn't resolve, which could be a takeover vulnerability (if someone else owns the domain name)
                     {
-                        return resolve(true);
+                        // Check if the nameserver IP is an IP address, if so, check if it's an "OK" IP address
+                        if (nameserver.match(/^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$/g)) {
+                            // TODO:
+                            // use net.isIP / isIPv4 / isIPv6 instead of above
+                            // also pass in (optional) arrays of safe nameservers:
+                            // IPv4
+                            // ipv6
+                            // hostnames (regex)
+
+                            // add CLI arg to pass ^ in, 3 separate files(?)
+
+                            // change output to an obj:
+                            /* 
+                            {
+                                isVulnerable: <bool>,
+                                reason: <string>,
+                                severity: <enum/string low|medium|high>
+                            }
+                            amend tests accordingly
+                            */
+
+                            response.reason = `Nameserver ${nameserver} (IP address) does not resolve`;
+                            response.reasonCode = "IP_NS_DOESNT_RESOLVE";
+                            response.vulnerable = true;
+                            response.severity = "HIGH"; // Should this be "LOW"?
+                            return resolve(response);
+                        }
+
+                        response.reason = `Nameserver ${nameserver} does not resolve`;
+                        response.reasonCode = "NS_DOESNT_RESOLVE";
+                        response.vulnerable = true;
+                        response.severity = "HIGH"; // Should this be "LOW"?
+                        return resolve(response);
                     }
                 }
             }
 
-            return resolve(false);
+            response.reason = `${hostname} is not delegated`;
+            response.reasonCode = "HOSTNAME_NOT_DELEGATED";
+            return resolve(response);
         } catch (e) {
             // Some DNS queries will error but are not a problem, we'll handle those here
-            if (e.code === "ENODATA") // This happens when: hostname has no NS record
+            if (e.code === "ENODATA") // This happens when: hostname has no NS record (thus it cannot be vulnerable)
                 {
-                    return resolve(false);
-                } else if (e.code === "ENOTFOUND") // This happens when: hostname is NXDOMAIN
+                    response.reason = `${hostname} has no NS records`;
+                    response.reasonCode = "HOSTNAME_HAS_NO_NS";
+                    return resolve(response);
+                } else if (e.code === "ENOTFOUND") // This happens when: hostname is NXDOMAIN (thus it cannot be vulnerable)
                 {
-                    return resolve(false);
+                    response.reason = `${hostname} has no DNS records (NXDOMAIN)`;
+                    response.reasonCode = "HOSTNAME_IS_NXDOMAIN";
+                    return resolve(response);
                 }
 
             return reject(e);
