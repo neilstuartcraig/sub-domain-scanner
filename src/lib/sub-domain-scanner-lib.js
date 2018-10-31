@@ -23,18 +23,8 @@ const parser = new Parser(
 });
 
 
-/*
-
-TODO: Connvert the output of isHostnameOrphanedDelegation() to an obj:
-{
-    isOrphanedDelegation: Boolean,
-    risk: [low|medium|high] (low: orphaned but points to own infra, med: oprhaned but ??, high: orphaned and points to e.g. R53/GDNS etc.)
-}
-
-newshub-live-mosdatastore.newsonline.tc.nca.bbc.co.uk is a SERVFAIL and flags as vulnerable but since it doesn't exist, it isn't
+// newshub-live-mosdatastore.newsonline.tc.nca.bbc.co.uk is a SERVFAIL and flags as vulnerable but since it doesn't exist, it isn't
     // might need to initially check if we get ESERVFAIL
-
-*/
 
 async function readFileContentsIntoArray(filename: string, separator: string = EOL, fileEncoding: string = "utf8", outputCharset: string = "utf8")
 {
@@ -154,12 +144,7 @@ async function isHostnameOrphanedDelegation(hostname: string, safeNameservers: O
                         if(isIP(nameserver))
                         {
 // TODO:
-// also pass in (optional) arrays of safe nameservers:
-    // IPv4
-    // ipv6
-    // hostnames (regex)
-
-// add CLI arg to pass ^ in, 3 separate files(?)
+// add CLI arg to pass ^ in, 3 separate files for safe nameservers: ipv4 ipv6, hostname 
                             if(isIPv4(nameserver))
                             {                          
                                 if(safeNameservers.ipv4)
@@ -182,8 +167,8 @@ async function isHostnameOrphanedDelegation(hostname: string, safeNameservers: O
                             {
                                 if(safeNameservers.ipv6)
                                 {
-                                    for(let safeIP of safeNameservers.ipv4)
-                                    {
+                                    for(let safeIP of safeNameservers.ipv6)
+                                    {                                        
                                         const safe = IPRangeCheck(nameserver, safeIP);
                                         if(safe)
                                         {
@@ -195,7 +180,6 @@ async function isHostnameOrphanedDelegation(hostname: string, safeNameservers: O
                                     }
                                 }
                             }
-
 
                             response.reason = `Nameserver ${nameserver} (IP address) does not resolve`;
                             response.reasonCode = "IP_NS_DOESNT_RESOLVE";

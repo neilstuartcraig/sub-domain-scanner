@@ -110,7 +110,7 @@ test("Correct operation, valid input (NS is an IP address but is on v6 safe list
     const hostname = "ns-is-ip-on-v6-safe-list.thedotproduct.org";
     const safeNameservers = 
     {
-        ipv6: ["::1"]
+        ipv6: ["2001:4b10:bbc::1"]
     };  
 
     const isOrphaned: Object = await isHostnameOrphanedDelegation(hostname, safeNameservers);
@@ -125,7 +125,7 @@ test("Correct operation, valid input (NS is an IP address but is on v6 safe list
     const hostname = "ns-is-ip-on-v6-safe-list.thedotproduct.org";
     const safeNameservers = 
     {
-        ipv6: ["::1/128"]
+        ipv6: ["2001:4b10:bbc::1/128"]
     };  
 
     const isOrphaned: Object = await isHostnameOrphanedDelegation(hostname, safeNameservers);

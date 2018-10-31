@@ -18,15 +18,19 @@ var _x509Parser = require("x509-parser");
 
 var _x509Parser2 = _interopRequireDefault(_x509Parser);
 
+var _ipRangeCheck = require("ip-range-check");
+
+var _ipRangeCheck2 = _interopRequireDefault(_ipRangeCheck);
+
 var _path = require("path");
 
 var _os = require("os");
 
+var _net = require("net");
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-// NOTE: Path is relative to build dir (dist/)
-
-const { Resolver } = require("dns").promises;
+const { Resolver } = require("dns").promises; // NOTE: Path is relative to build dir (dist/)
 
 const fsp = require("fs").promises;
 
@@ -37,18 +41,8 @@ const parser = new _rssParser2.default({
     }
 });
 
-/*
-
-TODO: Connvert the output of isHostnameOrphanedDelegation() to an obj:
-{
-    isOrphanedDelegation: Boolean,
-    risk: [low|medium|high] (low: orphaned but points to own infra, med: oprhaned but ??, high: orphaned and points to e.g. R53/GDNS etc.)
-}
-
-newshub-live-mosdatastore.newsonline.tc.nca.bbc.co.uk is a SERVFAIL and flags as vulnerable but since it doesn't exist, it isn't
-    // might need to initially check if we get ESERVFAIL
-
-*/
+// newshub-live-mosdatastore.newsonline.tc.nca.bbc.co.uk is a SERVFAIL and flags as vulnerable but since it doesn't exist, it isn't
+// might need to initially check if we get ESERVFAIL
 
 async function readFileContentsIntoArray(filename, separator = _os.EOL, fileEncoding = "utf8", outputCharset = "utf8") {
     if (!(typeof filename === 'string')) {
@@ -97,11 +91,16 @@ async function readFileContentsIntoArray(filename, separator = _os.EOL, fileEnco
 }
 
 // Takes and array of hostnames, checks if they're orphaned DNS delegations (they have an NS record which is an NXDOMAIN), returns a boolean
-async function isHostnameOrphanedDelegation(hostname) {
+async function isHostnameOrphanedDelegation(hostname, safeNameservers = {}) {
     if (!(typeof hostname === 'string')) {
         throw new TypeError("Value of argument \"hostname\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(hostname));
     }
 
+    if (!(safeNameservers instanceof Object)) {
+        throw new TypeError("Value of argument \"safeNameservers\" violates contract.\n\nExpected:\nObject\n\nGot:\n" + _inspect(safeNameservers));
+    }
+
+    // TODO: Refactor this into sub-functions, this is to looooooong    
     return new Promise(async (resolve, reject) => {
         const response = {
             vulnerable: false,
@@ -170,30 +169,64 @@ async function isHostnameOrphanedDelegation(hostname) {
                                     response.vulnerable = true;
                                     response.severity = "MEDIUM"; // Should this be "LOW"?
                                     return resolve(response);
+                                } else if (e.code === "ESERVFAIL") // The nameserver which the hostname points to has no records for the hostname (i.e. it doesn't have a zone for it)
+                                {
+                                    response.reason = `Nameserver ${nameserver} has no records for ${hostname}`;
+                                    response.reasonCode = "NS_HAS_NO_RECORDS";
+                                    response.vulnerable = true;
+                                    response.severity = "HIGH"; // Should this be "LOW"?
+                                    return resolve(response);
                                 }
                         }
                     } catch (e) // If we end up here, the NS record didn't resolve, which could be a takeover vulnerability (if someone else owns the domain name)
                     {
                         // Check if the nameserver IP is an IP address, if so, check if it's an "OK" IP address
-                        if (nameserver.match(/^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$/g)) {
+                        if ((0, _net.isIP)(nameserver)) {
                             // TODO:
-                            // use net.isIP / isIPv4 / isIPv6 instead of above
-                            // also pass in (optional) arrays of safe nameservers:
-                            // IPv4
-                            // ipv6
-                            // hostnames (regex)
+                            // add CLI arg to pass ^ in, 3 separate files for safe nameservers: ipv4 ipv6, hostname 
+                            if ((0, _net.isIPv4)(nameserver)) {
+                                if (safeNameservers.ipv4) {
+                                    _safeNameservers$ipv = safeNameservers.ipv4;
 
-                            // add CLI arg to pass ^ in, 3 separate files(?)
+                                    if (!(_safeNameservers$ipv && (typeof _safeNameservers$ipv[Symbol.iterator] === 'function' || Array.isArray(_safeNameservers$ipv)))) {
+                                        throw new TypeError("Expected _safeNameservers$ipv to be iterable, got " + _inspect(_safeNameservers$ipv));
+                                    }
 
-                            // change output to an obj:
-                            /* 
-                            {
-                                isVulnerable: <bool>,
-                                reason: <string>,
-                                severity: <enum/string low|medium|high>
+                                    for (let safeIP of _safeNameservers$ipv) {
+                                        var _safeNameservers$ipv;
+
+                                        const safe = (0, _ipRangeCheck2.default)(nameserver, safeIP);
+                                        if (safe) {
+                                            response.reason = `${hostname} is delegated to IP-based nameserver but it's on the IPv4 safe list`;
+                                            response.reasonCode = "IP_NS_ON_V4_SAFE_LIST";
+                                            response.vulnerable = false;
+                                            return resolve(response);
+                                        }
+                                    }
+                                }
                             }
-                            amend tests accordingly
-                            */
+
+                            if ((0, _net.isIPv6)(nameserver)) {
+                                if (safeNameservers.ipv6) {
+                                    _safeNameservers$ipv2 = safeNameservers.ipv4;
+
+                                    if (!(_safeNameservers$ipv2 && (typeof _safeNameservers$ipv2[Symbol.iterator] === 'function' || Array.isArray(_safeNameservers$ipv2)))) {
+                                        throw new TypeError("Expected _safeNameservers$ipv2 to be iterable, got " + _inspect(_safeNameservers$ipv2));
+                                    }
+
+                                    for (let safeIP of _safeNameservers$ipv2) {
+                                        var _safeNameservers$ipv2;
+
+                                        const safe = (0, _ipRangeCheck2.default)(nameserver, safeIP);
+                                        if (safe) {
+                                            response.reason = `${hostname} is delegated to IP-based nameserver but it's on the IPv6 safe list`;
+                                            response.reasonCode = "IP_NS_ON_V6_SAFE_LIST";
+                                            response.vulnerable = false;
+                                            return resolve(response);
+                                        }
+                                    }
+                                }
+                            }
 
                             response.reason = `Nameserver ${nameserver} (IP address) does not resolve`;
                             response.reasonCode = "IP_NS_DOESNT_RESOLVE";
