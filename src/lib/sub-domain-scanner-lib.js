@@ -50,7 +50,7 @@ async function readFileContentsIntoArray(filename: string, separator: string = E
 // Takes and array of hostnames, checks if they're orphaned DNS delegations (they have an NS record which is an NXDOMAIN), returns a boolean
 async function isHostnameOrphanedDelegation(hostname: string, safeNameservers: Object = {})
 {
-// TODO: Refactor this into sub-functions, this is to looooooong    
+// TODO: Refactor this into sub-functions, this is too looooooong    
     return new Promise(async (resolve, reject) => 
     {
         const response = 
