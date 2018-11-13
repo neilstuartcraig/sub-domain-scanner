@@ -4,7 +4,7 @@ import {EOL} from "os";
 import {default as getstdin} from "get-stdin";
 
 
-import {isHostnameOrphanedDelegation, readFileContentsIntoArray} from "../lib/sub-domain-scanner-lib.js"; // NOTE: Path is relative to build dir (dist/) - local because lib is babel'd
+import {isHostnameOrphanedDelegation, readFileContentsIntoArray, isHostnameOrphaned} from "../lib/sub-domain-scanner-lib.js"; // NOTE: Path is relative to build dir (dist/) - local because lib is babel'd
 
 const hostnamesFileOpt = 
 {
@@ -71,14 +71,30 @@ let mod =
                     process.exit(1);
                 }
             }
-console.dir(hostnames);
+
             for(let hostname of hostnames)
             {
                 const isVulnerableDelegation = await isHostnameOrphanedDelegation(hostname);
-// if(isVulnerableDelegation)
-// {
-console.log(`${hostname} - vuln? ${isVulnerableDelegation}`);                
-// }
+if(isVulnerableDelegation.vulnerable)
+{
+console.log(`${hostname} - vuln? ${JSON.stringify(isVulnerableDelegation, null, 2)}`);                
+}
+
+// TODO: in discover, add https://hackertarget.com/find-shared-dns-servers/ - seems to find a lot of related domains - try search for ns4.bbc.co.uk
+
+                // TODO: reduce DNS lookups - perhaps do a single lookup per hostname and feed the results into other checker functions
+
+                // test whether orphaned here
+                const isOrphaned = await isHostnameOrphaned(hostname); // TODO: rename isOrphaned
+                if(isOrphaned.vulnerable)
+                {
+console.error(isOrphaned.message);                    
+                }
+// TODO: auto takeover for s3 etc.
+
+// TODO: more checks
+//
+
             }
 
             // console.log(output);

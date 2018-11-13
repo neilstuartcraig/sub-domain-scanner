@@ -13,6 +13,7 @@ import {resolve as resolvePaths} from "path";
 const fsp = require("fs").promises;
 import {EOL} from "os";
 import {isIP, isIPv4, isIPv6} from "net";
+import {get as axiosGet} from "axios";
 
 const parser = new Parser(
 {
@@ -21,6 +22,95 @@ const parser = new Parser(
         item: ["summary"]
     }
 });
+
+
+// TODO: mnove this to config or somewhere more sensible
+const storageServicesChecks = 
+[
+    {
+        "name": "AWS S3 bucket",
+        "hostnameRegex": /s3\-.+\.amazonaws\.com$/i,
+        "scheme": "https",
+        "responseStatusForNonExisting": 404,
+        "responseBodyMatchForNonExisting": "NoSuchBucket"
+    },
+    {
+        "name": "Google Cloud Storage bucket",
+        "hostnameRegex": /^c\.storage\.googleapis\.com$/i,
+        "scheme": "https",
+        "responseStatusForNonExisting": 404,
+        "responseBodyMatchForNonExisting": "InvalidBucketName"
+    }
+    // TODO: Add more!
+];
+
+const axiosGetConfig = 
+{
+    validateStatus: () => 
+    {
+        return true;
+    }
+};
+
+// Takes a DNS recordset and tests whether it is a CNAME to a 3rd party storage service e.g. AWS S3
+async function isHostnameCNameTo3rdPartyStorage(hostname: string, cnames: Array)
+{
+    let output: Object = 
+    {
+        "vulnerable": false,
+        "message": ""
+    }; 
+
+    for(let cname of cnames)
+    {
+        for(let storageService of storageServicesChecks)
+        {
+            if(cname.match(storageService.hostnameRegex))
+            {
+                const serviceURL = `${storageService.scheme}://${cname}/`;
+             
+// TODO: Work out how to make this more testable - no side effects (pass in the axiosGet fn as an arg?)               
+                const response = await axiosGet(serviceURL, axiosGetConfig);
+
+                if(response.data.match(storageService.responseBodyMatchForNonExisting) && response.status === storageService.responseStatusForNonExisting)
+                {
+                    output.vulnerable = true; 
+                    output.message = `${hostname} is a CNAME to ${cname} (non-existant ${storageService.name})`;
+                    break; // Presumably, it's not possible for a single cname to be directed at >1 storage service (?)
+                }
+            }   
+        }
+    }
+
+    return output;
+}
+
+
+// Takes a hostname and tests whether it is orphaned (e.g. a cname pointing to a non-existant AWS S3 bucket)
+async function isHostnameOrphaned(hostname: string) // TODO: consider adding an object arg containing "safe" destinations
+{
+    return new Promise(async (resolve, reject) => 
+    {
+        try
+        {
+            // Check for 
+                // cname to 3rd party e.g. S3/GCS/CDN
+                    // see https://github.com/EdOverflow/smith/blob/master/smith
+                    // See https://github.com/EdOverflow/can-i-take-over-xyz
+                // A -> 3rd party IP (v4/v6)
+
+            const resolver = new Resolver();
+            const cnames = await resolver.resolveCname(hostname); 
+            const isCNamedTo3rdPartyStorage = isHostnameCNameTo3rdPartyStorage(hostname, cnames);
+return resolve(isCNamedTo3rdPartyStorage);
+
+        }
+        catch(e)
+        {
+            reject(e);
+        }
+    });    
+}
 
 
 // newshub-live-mosdatastore.newsonline.tc.nca.bbc.co.uk is a SERVFAIL and flags as vulnerable but since it doesn't exist, it isn't
@@ -325,5 +415,6 @@ module.exports =
     getHostnamesFromCTLogs: getHostnamesFromCTLogs,
     filterHostnames: filterHostnames,
     isHostnameOrphanedDelegation:isHostnameOrphanedDelegation,
-    readFileContentsIntoArray: readFileContentsIntoArray
+    readFileContentsIntoArray: readFileContentsIntoArray,
+    isHostnameOrphaned: isHostnameOrphaned
 };

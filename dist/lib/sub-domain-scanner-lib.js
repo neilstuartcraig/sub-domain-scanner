@@ -28,6 +28,8 @@ var _os = require("os");
 
 var _net = require("net");
 
+var _axios = require("axios");
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 const { Resolver } = require("dns").promises; // NOTE: Path is relative to build dir (dist/)
@@ -40,6 +42,96 @@ const parser = new _rssParser2.default({
         item: ["summary"]
     }
 });
+
+// TODO: mnove this to config or somewhere more sensible
+const storageServicesChecks = [{
+    "name": "AWS S3 bucket",
+    "hostnameRegex": /s3\-.+\.amazonaws\.com$/i,
+    "scheme": "https",
+    "responseStatusForNonExisting": 404,
+    "responseBodyMatchForNonExisting": "NoSuchBucket"
+}, {
+    "name": "Google Cloud Storage bucket",
+    "hostnameRegex": /^c\.storage\.googleapis\.com$/i,
+    "scheme": "https",
+    "responseStatusForNonExisting": 404,
+    "responseBodyMatchForNonExisting": "InvalidBucketName"
+    // TODO: Add more!
+}];
+
+const axiosGetConfig = {
+    validateStatus: () => {
+        return true;
+    }
+};
+
+// Takes a DNS recordset and tests whether it is a CNAME to a 3rd party storage service e.g. AWS S3
+async function isHostnameCNameTo3rdPartyStorage(hostname, cnames) {
+    if (!(typeof hostname === 'string')) {
+        throw new TypeError("Value of argument \"hostname\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(hostname));
+    }
+
+    if (!Array.isArray(cnames)) {
+        throw new TypeError("Value of argument \"cnames\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(cnames));
+    }
+
+    let output = {
+        "vulnerable": false,
+        "message": ""
+    };
+
+    if (!(cnames && (typeof cnames[Symbol.iterator] === 'function' || Array.isArray(cnames)))) {
+        throw new TypeError("Expected cnames to be iterable, got " + _inspect(cnames));
+    }
+
+    for (let cname of cnames) {
+        if (!(storageServicesChecks && (typeof storageServicesChecks[Symbol.iterator] === 'function' || Array.isArray(storageServicesChecks)))) {
+            throw new TypeError("Expected storageServicesChecks to be iterable, got " + _inspect(storageServicesChecks));
+        }
+
+        for (let storageService of storageServicesChecks) {
+            if (cname.match(storageService.hostnameRegex)) {
+                const serviceURL = `${storageService.scheme}://${cname}/`;
+
+                // TODO: Work out how to make this more testable - no side effects (pass in the axiosGet fn as an arg?)               
+                const response = await (0, _axios.get)(serviceURL, axiosGetConfig);
+                console.log(`s: ${response.status}`);
+                if (response.data.match(storageService.responseBodyMatchForNonExisting) && response.status === storageService.responseStatusForNonExisting) {
+                    output.vulnerable = true;
+                    output.message = `${hostname} is a CNAME to ${cname} (non-existant ${storageService.name})`;
+                    break; // Presumably, it's not possible for a single cname to be directed at >1 storage service (?)
+                }
+            }
+        }
+    }
+
+    return output;
+}
+
+// Takes a hostname and tests whether it is orphaned (e.g. a cname pointing to a non-existant AWS S3 bucket)
+async function isHostnameOrphaned(hostname) // TODO: consider adding an object arg containing "safe" destinations
+{
+    if (!(typeof hostname === 'string')) {
+        throw new TypeError("Value of argument \"hostname\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(hostname));
+    }
+
+    return new Promise(async (resolve, reject) => {
+        try {
+            // Check for 
+            // cname to 3rd party e.g. S3/GCS/CDN
+            // see https://github.com/EdOverflow/smith/blob/master/smith
+            // See https://github.com/EdOverflow/can-i-take-over-xyz
+            // A -> 3rd party IP (v4/v6)
+
+            const resolver = new Resolver();
+            const cnames = await resolver.resolveCname(hostname);
+            const isCNamedTo3rdPartyStorage = isHostnameCNameTo3rdPartyStorage(hostname, cnames);
+            return resolve(isCNamedTo3rdPartyStorage);
+        } catch (e) {
+            reject(e);
+        }
+    });
+}
 
 // newshub-live-mosdatastore.newsonline.tc.nca.bbc.co.uk is a SERVFAIL and flags as vulnerable but since it doesn't exist, it isn't
 // might need to initially check if we get ESERVFAIL
@@ -100,7 +192,7 @@ async function isHostnameOrphanedDelegation(hostname, safeNameservers = {}) {
         throw new TypeError("Value of argument \"safeNameservers\" violates contract.\n\nExpected:\nObject\n\nGot:\n" + _inspect(safeNameservers));
     }
 
-    // TODO: Refactor this into sub-functions, this is to looooooong    
+    // TODO: Refactor this into sub-functions, this is too looooooong    
     return new Promise(async (resolve, reject) => {
         const response = {
             vulnerable: false,
@@ -208,7 +300,7 @@ async function isHostnameOrphanedDelegation(hostname, safeNameservers = {}) {
 
                             if ((0, _net.isIPv6)(nameserver)) {
                                 if (safeNameservers.ipv6) {
-                                    _safeNameservers$ipv2 = safeNameservers.ipv4;
+                                    _safeNameservers$ipv2 = safeNameservers.ipv6;
 
                                     if (!(_safeNameservers$ipv2 && (typeof _safeNameservers$ipv2[Symbol.iterator] === 'function' || Array.isArray(_safeNameservers$ipv2)))) {
                                         throw new TypeError("Expected _safeNameservers$ipv2 to be iterable, got " + _inspect(_safeNameservers$ipv2));
@@ -413,7 +505,8 @@ module.exports = {
     getHostnamesFromCTLogs: getHostnamesFromCTLogs,
     filterHostnames: filterHostnames,
     isHostnameOrphanedDelegation: isHostnameOrphanedDelegation,
-    readFileContentsIntoArray: readFileContentsIntoArray
+    readFileContentsIntoArray: readFileContentsIntoArray,
+    isHostnameOrphaned: isHostnameOrphaned
 };
 
 function _inspect(input, depth) {

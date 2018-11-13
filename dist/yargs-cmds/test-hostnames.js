@@ -75,7 +75,6 @@ let mod = {
                         process.exit(1);
                     }
                 }
-            console.dir(hostnames);
 
             if (!(hostnames && (typeof hostnames[Symbol.iterator] === 'function' || Array.isArray(hostnames)))) {
                 throw new TypeError("Expected hostnames to be iterable, got " + _inspect(hostnames));
@@ -83,10 +82,21 @@ let mod = {
 
             for (let hostname of hostnames) {
                 const isVulnerableDelegation = await (0, _subDomainScannerLib.isHostnameOrphanedDelegation)(hostname);
-                // if(isVulnerableDelegation)
-                // {
-                console.log(`${hostname} - vuln? ${isVulnerableDelegation}`);
-                // }
+                if (isVulnerableDelegation.vulnerable) {
+                    console.log(`${hostname} - vuln? ${JSON.stringify(isVulnerableDelegation, null, 2)}`);
+                }
+
+                // TODO: reduce DNS lookups - perhaps do a single lookup per hostname and feed the results into other checker functions
+
+                // test whether orphaned here
+                const isOrphaned = await (0, _subDomainScannerLib.isHostnameOrphaned)(hostname); // TODO: rename isOrphaned
+                if (isOrphaned.vulnerable) {
+                    console.error(isOrphaned.message);
+                }
+                // TODO: auto takeover for s3 etc.
+
+                // TODO: more checks
+                //
             }
 
             // console.log(output);
