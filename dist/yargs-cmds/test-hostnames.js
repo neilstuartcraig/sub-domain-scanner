@@ -6,10 +6,13 @@ var _getStdin = require("get-stdin");
 
 var _getStdin2 = _interopRequireDefault(_getStdin);
 
+var _axios = require("axios");
+
 var _subDomainScannerLib = require("../lib/sub-domain-scanner-lib.js");
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
+const { Resolver } = require("dns").promises;
 // NOTE: Path is relative to build dir (dist/) - local because lib is babel'd
 
 const hostnamesFileOpt = {
@@ -81,15 +84,22 @@ let mod = {
             }
 
             for (let hostname of hostnames) {
-                const isVulnerableDelegation = await (0, _subDomainScannerLib.isHostnameOrphanedDelegation)(hostname);
+                const isVulnerableDelegation = await (0, _subDomainScannerLib.isHostnameOrphanedDelegation)(hostname, Resolver, _axios.get);
                 if (isVulnerableDelegation.vulnerable) {
                     console.log(`${hostname} - vuln? ${JSON.stringify(isVulnerableDelegation, null, 2)}`);
                 }
 
+                // TODO: in discover, add https://hackertarget.com/find-shared-dns-servers/ - seems to find a lot of related domains - try search for ns4.bbc.co.uk
+
                 // TODO: reduce DNS lookups - perhaps do a single lookup per hostname and feed the results into other checker functions
 
                 // test whether orphaned here
-                const isOrphaned = await (0, _subDomainScannerLib.isHostnameOrphaned)(hostname); // TODO: rename isOrphaned
+                const isOrphaned = await (0, _subDomainScannerLib.isHostnameOrphaned)(hostname, Resolver, _axios.get); // TODO: rename isOrphaned
+
+                if (!(isOrphaned instanceof Object)) {
+                    throw new TypeError("Value of variable \"isOrphaned\" violates contract.\n\nExpected:\nObject\n\nGot:\n" + _inspect(isOrphaned));
+                }
+
                 if (isOrphaned.vulnerable) {
                     console.error(isOrphaned.message);
                 }

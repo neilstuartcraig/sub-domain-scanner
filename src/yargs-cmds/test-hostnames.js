@@ -2,6 +2,8 @@
 
 import {EOL} from "os";
 import {default as getstdin} from "get-stdin";
+const {Resolver} = require("dns").promises;
+import {get as axiosGet} from "axios";
 
 
 import {isHostnameOrphanedDelegation, readFileContentsIntoArray, isHostnameOrphaned} from "../lib/sub-domain-scanner-lib.js"; // NOTE: Path is relative to build dir (dist/) - local because lib is babel'd
@@ -74,7 +76,7 @@ let mod =
 
             for(let hostname of hostnames)
             {
-                const isVulnerableDelegation = await isHostnameOrphanedDelegation(hostname);
+                const isVulnerableDelegation = await isHostnameOrphanedDelegation(hostname, Resolver, axiosGet);
 if(isVulnerableDelegation.vulnerable)
 {
 console.log(`${hostname} - vuln? ${JSON.stringify(isVulnerableDelegation, null, 2)}`);                
@@ -85,7 +87,7 @@ console.log(`${hostname} - vuln? ${JSON.stringify(isVulnerableDelegation, null, 
                 // TODO: reduce DNS lookups - perhaps do a single lookup per hostname and feed the results into other checker functions
 
                 // test whether orphaned here
-                const isOrphaned = await isHostnameOrphaned(hostname); // TODO: rename isOrphaned
+                const isOrphaned: Object = await isHostnameOrphaned(hostname, Resolver, axiosGet); // TODO: rename isOrphaned
                 if(isOrphaned.vulnerable)
                 {
 console.error(isOrphaned.message);                    

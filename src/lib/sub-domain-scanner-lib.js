@@ -8,12 +8,12 @@ import {default as Parser} from "rss-parser";
 import {default as x509} from "x509-parser";
 import {default as IPRangeCheck} from "ip-range-check";
 
-const {Resolver} = require("dns").promises;
+
 import {resolve as resolvePaths} from "path";
 const fsp = require("fs").promises;
 import {EOL} from "os";
 import {isIP, isIPv4, isIPv6} from "net";
-import {get as axiosGet} from "axios";
+
 
 const parser = new Parser(
 {
@@ -25,7 +25,8 @@ const parser = new Parser(
 
 
 // TODO: mnove this to config or somewhere more sensible
-const storageServicesChecks = 
+// NOTE: This borrows and is inspired by https://github.com/EdOverflow/smith/blob/master/smith
+const thirdPartyServicesChecks = 
 [
     {
         "name": "AWS S3 bucket",
@@ -40,6 +41,48 @@ const storageServicesChecks =
         "scheme": "https",
         "responseStatusForNonExisting": 404,
         "responseBodyMatchForNonExisting": "InvalidBucketName"
+    },
+    {
+        "name": "Cloudfront distribution",
+        "hostnameRegex": /.+\.cloudfront.net$/i,
+        "scheme": "https",
+        "responseStatusForNonExisting": 404,
+        "responseBodyMatchForNonExisting": "The request could not be satisfied"
+    },
+    {
+        "name": "Fastly configuration",
+        "hostnameRegex": /.+\.fastly\.net$/i,
+        "scheme": "http",
+        "responseStatusForNonExisting": null,
+        "responseBodyMatchForNonExisting": "Fastly error: unknown domain"
+    },
+    {
+        "name": "github.io account",
+        "hostnameRegex": /.+\.github\.io$/i,
+        "scheme": "https",
+        "responseStatusForNonExisting": 404,
+        "responseBodyMatchForNonExisting": "There isn't a GitHub Pages site here."
+    },
+    {
+        "name": "Zendesk account",
+        "hostnameRegex": /.+\.zendesk\.com$/i,
+        "scheme": "http",
+        "responseStatusForNonExisting": 200, // NOTE: This is the result of a 301
+        "responseBodyMatchForNonExisting": "Bummer. It looks like the help center that you are trying to reach no longer exists."
+    },
+    {
+        "name": "Wordpress.com hosting account",
+        "hostnameRegex": /.+\.wordpress\.com$/i,
+        "scheme": "https",
+        "responseStatusForNonExisting": 200,
+        "responseBodyMatchForNonExisting": /.+wordpress\.com\<\/em> doesn&#8217;t&nbsp;exist/g
+    },
+    {
+        "name": "Heroku app",
+        "hostnameRegex": /.+herokuapp\.com$/i,
+        "scheme": "http",
+        "responseStatusForNonExisting": 404,
+        "responseBodyMatchForNonExisting": "<iframe src=\"//www.herokucdn.com/error-pages/no-such-app.html\"></iframe>"
     }
     // TODO: Add more!
 ];
@@ -52,8 +95,11 @@ const axiosGetConfig =
     }
 };
 
+// TODO: add discovery method using https://api.hackertarget.com/findshareddns/?q=ns1.bbc.co.uk
+
+
 // Takes a DNS recordset and tests whether it is a CNAME to a 3rd party storage service e.g. AWS S3
-async function isHostnameCNameTo3rdPartyStorage(hostname: string, cnames: Array)
+async function isHostnameCNameTo3rdParty(hostname: string, cnames: Array, axiosGetFn: Function)
 {
     let output: Object = 
     {
@@ -63,19 +109,17 @@ async function isHostnameCNameTo3rdPartyStorage(hostname: string, cnames: Array)
 
     for(let cname of cnames)
     {
-        for(let storageService of storageServicesChecks)
+        for(let thirdPartyServiceCheckConfig of thirdPartyServicesChecks)
         {
-            if(cname.match(storageService.hostnameRegex))
+            if(cname.match(thirdPartyServiceCheckConfig.hostnameRegex))
             {
-                const serviceURL = `${storageService.scheme}://${cname}/`;
-             
-// TODO: Work out how to make this more testable - no side effects (pass in the axiosGet fn as an arg?)               
-                const response = await axiosGet(serviceURL, axiosGetConfig);
+                const serviceURL = `${thirdPartyServiceCheckConfig.scheme}://${cname}/`;        
+                const response = await axiosGetFn(serviceURL, axiosGetConfig);
 
-                if(response.data.match(storageService.responseBodyMatchForNonExisting) && response.status === storageService.responseStatusForNonExisting)
+                if(response.data.match(thirdPartyServiceCheckConfig.responseBodyMatchForNonExisting) && response.status === thirdPartyServiceCheckConfig.responseStatusForNonExisting)
                 {
                     output.vulnerable = true; 
-                    output.message = `${hostname} is a CNAME to ${cname} (non-existant ${storageService.name})`;
+                    output.message = `${hostname} is a CNAME to ${cname} (non-existant ${thirdPartyServiceCheckConfig.name})`;
                     break; // Presumably, it's not possible for a single cname to be directed at >1 storage service (?)
                 }
             }   
@@ -87,7 +131,7 @@ async function isHostnameCNameTo3rdPartyStorage(hostname: string, cnames: Array)
 
 
 // Takes a hostname and tests whether it is orphaned (e.g. a cname pointing to a non-existant AWS S3 bucket)
-async function isHostnameOrphaned(hostname: string) // TODO: consider adding an object arg containing "safe" destinations
+async function isHostnameOrphaned(hostname: string, Resolver: Object, axiosGetFn: Function) // TODO: consider adding an object arg containing "safe" destinations
 {
     return new Promise(async (resolve, reject) => 
     {
@@ -101,13 +145,15 @@ async function isHostnameOrphaned(hostname: string) // TODO: consider adding an 
 
             const resolver = new Resolver();
             const cnames = await resolver.resolveCname(hostname); 
-            const isCNamedTo3rdPartyStorage = isHostnameCNameTo3rdPartyStorage(hostname, cnames);
+
+            const isCNamedTo3rdPartyStorage = isHostnameCNameTo3rdParty(hostname, cnames, axiosGetFn);
+
 return resolve(isCNamedTo3rdPartyStorage);
 
         }
         catch(e)
         {
-            reject(e);
+            return reject(e);
         }
     });    
 }
@@ -132,13 +178,13 @@ async function readFileContentsIntoArray(filename: string, separator: string = E
         }
         catch(e)
         {
-            reject(e);
+            return reject(e);
         }
     });
 }
 
 // Takes and array of hostnames, checks if they're orphaned DNS delegations (they have an NS record which is an NXDOMAIN), returns a boolean
-async function isHostnameOrphanedDelegation(hostname: string, safeNameservers: Object = {})
+async function isHostnameOrphanedDelegation(hostname: string, Resolver: Object, safeNameservers: Object = {})
 {
 // TODO: Refactor this into sub-functions, this is too looooooong    
     return new Promise(async (resolve, reject) => 

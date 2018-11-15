@@ -42,3 +42,17 @@ test("Correct operation, valid input (empty)", async (t) =>
     
     t.deepEqual(output, expectedOutput, "expected output must be empty array");
 });
+
+test("Correct operation, invalid input (non-existent file)", async (t) => 
+{
+    const filename: string = joinPath(__dirname, "fixtures/this-file-doesnt-exists.txt");
+    
+    try
+    {
+        await readFileContentsIntoArray(filename);
+    }
+    catch(e)
+    {
+        t.is(e instanceof Error, true, "must reject the promise, with an error");
+    }
+});

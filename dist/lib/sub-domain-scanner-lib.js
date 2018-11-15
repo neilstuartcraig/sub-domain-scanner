@@ -28,11 +28,9 @@ var _os = require("os");
 
 var _net = require("net");
 
-var _axios = require("axios");
-
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-const { Resolver } = require("dns").promises; // NOTE: Path is relative to build dir (dist/)
+// NOTE: Path is relative to build dir (dist/)
 
 const fsp = require("fs").promises;
 
@@ -44,7 +42,8 @@ const parser = new _rssParser2.default({
 });
 
 // TODO: mnove this to config or somewhere more sensible
-const storageServicesChecks = [{
+// NOTE: This borrows and is inspired by https://github.com/EdOverflow/smith/blob/master/smith
+const thirdPartyServicesChecks = [{
     "name": "AWS S3 bucket",
     "hostnameRegex": /s3\-.+\.amazonaws\.com$/i,
     "scheme": "https",
@@ -56,6 +55,42 @@ const storageServicesChecks = [{
     "scheme": "https",
     "responseStatusForNonExisting": 404,
     "responseBodyMatchForNonExisting": "InvalidBucketName"
+}, {
+    "name": "Cloudfront distribution",
+    "hostnameRegex": /.+\.cloudfront.net$/i,
+    "scheme": "https",
+    "responseStatusForNonExisting": 404,
+    "responseBodyMatchForNonExisting": "The request could not be satisfied"
+}, {
+    "name": "Fastly configuration",
+    "hostnameRegex": /.+\.fastly\.net$/i,
+    "scheme": "http",
+    "responseStatusForNonExisting": null,
+    "responseBodyMatchForNonExisting": "Fastly error: unknown domain"
+}, {
+    "name": "github.io account",
+    "hostnameRegex": /.+\.github\.io$/i,
+    "scheme": "https",
+    "responseStatusForNonExisting": 404,
+    "responseBodyMatchForNonExisting": "There isn't a GitHub Pages site here."
+}, {
+    "name": "Zendesk account",
+    "hostnameRegex": /.+\.zendesk\.com$/i,
+    "scheme": "http",
+    "responseStatusForNonExisting": 200, // NOTE: This is the result of a 301
+    "responseBodyMatchForNonExisting": "Bummer. It looks like the help center that you are trying to reach no longer exists."
+}, {
+    "name": "Wordpress.com hosting account",
+    "hostnameRegex": /.+\.wordpress\.com$/i,
+    "scheme": "https",
+    "responseStatusForNonExisting": 200,
+    "responseBodyMatchForNonExisting": /.+wordpress\.com\<\/em> doesn&#8217;t&nbsp;exist/g
+}, {
+    "name": "Heroku app",
+    "hostnameRegex": /.+herokuapp\.com$/i,
+    "scheme": "http",
+    "responseStatusForNonExisting": 404,
+    "responseBodyMatchForNonExisting": "<iframe src=\"//www.herokucdn.com/error-pages/no-such-app.html\"></iframe>"
     // TODO: Add more!
 }];
 
@@ -65,14 +100,21 @@ const axiosGetConfig = {
     }
 };
 
+// TODO: add discovery method using https://api.hackertarget.com/findshareddns/?q=ns1.bbc.co.uk
+
+
 // Takes a DNS recordset and tests whether it is a CNAME to a 3rd party storage service e.g. AWS S3
-async function isHostnameCNameTo3rdPartyStorage(hostname, cnames) {
+async function isHostnameCNameTo3rdParty(hostname, cnames, axiosGetFn) {
     if (!(typeof hostname === 'string')) {
         throw new TypeError("Value of argument \"hostname\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(hostname));
     }
 
     if (!Array.isArray(cnames)) {
         throw new TypeError("Value of argument \"cnames\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(cnames));
+    }
+
+    if (!(typeof axiosGetFn === 'function')) {
+        throw new TypeError("Value of argument \"axiosGetFn\" violates contract.\n\nExpected:\nFunction\n\nGot:\n" + _inspect(axiosGetFn));
     }
 
     let output = {
@@ -85,20 +127,18 @@ async function isHostnameCNameTo3rdPartyStorage(hostname, cnames) {
     }
 
     for (let cname of cnames) {
-        if (!(storageServicesChecks && (typeof storageServicesChecks[Symbol.iterator] === 'function' || Array.isArray(storageServicesChecks)))) {
-            throw new TypeError("Expected storageServicesChecks to be iterable, got " + _inspect(storageServicesChecks));
+        if (!(thirdPartyServicesChecks && (typeof thirdPartyServicesChecks[Symbol.iterator] === 'function' || Array.isArray(thirdPartyServicesChecks)))) {
+            throw new TypeError("Expected thirdPartyServicesChecks to be iterable, got " + _inspect(thirdPartyServicesChecks));
         }
 
-        for (let storageService of storageServicesChecks) {
-            if (cname.match(storageService.hostnameRegex)) {
-                const serviceURL = `${storageService.scheme}://${cname}/`;
+        for (let thirdPartyServiceCheckConfig of thirdPartyServicesChecks) {
+            if (cname.match(thirdPartyServiceCheckConfig.hostnameRegex)) {
+                const serviceURL = `${thirdPartyServiceCheckConfig.scheme}://${cname}/`;
+                const response = await axiosGetFn(serviceURL, axiosGetConfig);
 
-                // TODO: Work out how to make this more testable - no side effects (pass in the axiosGet fn as an arg?)               
-                const response = await (0, _axios.get)(serviceURL, axiosGetConfig);
-                console.log(`s: ${response.status}`);
-                if (response.data.match(storageService.responseBodyMatchForNonExisting) && response.status === storageService.responseStatusForNonExisting) {
+                if (response.data.match(thirdPartyServiceCheckConfig.responseBodyMatchForNonExisting) && response.status === thirdPartyServiceCheckConfig.responseStatusForNonExisting) {
                     output.vulnerable = true;
-                    output.message = `${hostname} is a CNAME to ${cname} (non-existant ${storageService.name})`;
+                    output.message = `${hostname} is a CNAME to ${cname} (non-existant ${thirdPartyServiceCheckConfig.name})`;
                     break; // Presumably, it's not possible for a single cname to be directed at >1 storage service (?)
                 }
             }
@@ -109,10 +149,18 @@ async function isHostnameCNameTo3rdPartyStorage(hostname, cnames) {
 }
 
 // Takes a hostname and tests whether it is orphaned (e.g. a cname pointing to a non-existant AWS S3 bucket)
-async function isHostnameOrphaned(hostname) // TODO: consider adding an object arg containing "safe" destinations
+async function isHostnameOrphaned(hostname, Resolver, axiosGetFn) // TODO: consider adding an object arg containing "safe" destinations
 {
     if (!(typeof hostname === 'string')) {
         throw new TypeError("Value of argument \"hostname\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(hostname));
+    }
+
+    if (!(Resolver instanceof Object)) {
+        throw new TypeError("Value of argument \"Resolver\" violates contract.\n\nExpected:\nObject\n\nGot:\n" + _inspect(Resolver));
+    }
+
+    if (!(typeof axiosGetFn === 'function')) {
+        throw new TypeError("Value of argument \"axiosGetFn\" violates contract.\n\nExpected:\nFunction\n\nGot:\n" + _inspect(axiosGetFn));
     }
 
     return new Promise(async (resolve, reject) => {
@@ -125,10 +173,12 @@ async function isHostnameOrphaned(hostname) // TODO: consider adding an object a
 
             const resolver = new Resolver();
             const cnames = await resolver.resolveCname(hostname);
-            const isCNamedTo3rdPartyStorage = isHostnameCNameTo3rdPartyStorage(hostname, cnames);
+
+            const isCNamedTo3rdPartyStorage = isHostnameCNameTo3rdParty(hostname, cnames, axiosGetFn);
+
             return resolve(isCNamedTo3rdPartyStorage);
         } catch (e) {
-            reject(e);
+            return reject(e);
         }
     });
 }
@@ -177,15 +227,19 @@ async function readFileContentsIntoArray(filename, separator = _os.EOL, fileEnco
 
             return resolve(output);
         } catch (e) {
-            reject(e);
+            return reject(e);
         }
     });
 }
 
 // Takes and array of hostnames, checks if they're orphaned DNS delegations (they have an NS record which is an NXDOMAIN), returns a boolean
-async function isHostnameOrphanedDelegation(hostname, safeNameservers = {}) {
+async function isHostnameOrphanedDelegation(hostname, Resolver, safeNameservers = {}) {
     if (!(typeof hostname === 'string')) {
         throw new TypeError("Value of argument \"hostname\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(hostname));
+    }
+
+    if (!(Resolver instanceof Object)) {
+        throw new TypeError("Value of argument \"Resolver\" violates contract.\n\nExpected:\nObject\n\nGot:\n" + _inspect(Resolver));
     }
 
     if (!(safeNameservers instanceof Object)) {
