@@ -97,6 +97,8 @@ const axiosGetConfig =
 
 // TODO: add discovery method using https://api.hackertarget.com/findshareddns/?q=ns1.bbc.co.uk
 
+// TODO: ignore hostnames which are wildcarded e.g. *.api.bbc.co.uk 
+
 
 // Takes a DNS recordset and tests whether it is a CNAME to a 3rd party storage service e.g. AWS S3
 async function isHostnameCNameTo3rdParty(hostname: string, cnames: Array, axiosGetFn: Function)
@@ -113,14 +115,21 @@ async function isHostnameCNameTo3rdParty(hostname: string, cnames: Array, axiosG
         {
             if(cname.match(thirdPartyServiceCheckConfig.hostnameRegex))
             {
-                const serviceURL = `${thirdPartyServiceCheckConfig.scheme}://${cname}/`;        
-                const response = await axiosGetFn(serviceURL, axiosGetConfig);
-
-                if(response.data.match(thirdPartyServiceCheckConfig.responseBodyMatchForNonExisting) && response.status === thirdPartyServiceCheckConfig.responseStatusForNonExisting)
+                try
                 {
-                    output.vulnerable = true; 
-                    output.message = `${hostname} is a CNAME to ${cname} (non-existant ${thirdPartyServiceCheckConfig.name})`;
-                    break; // Presumably, it's not possible for a single cname to be directed at >1 storage service (?)
+                    const serviceURL = `${thirdPartyServiceCheckConfig.scheme}://${cname}/`;        
+                    const response = await axiosGetFn(serviceURL, axiosGetConfig);
+
+                    if(response.data.match(thirdPartyServiceCheckConfig.responseBodyMatchForNonExisting) && response.status === thirdPartyServiceCheckConfig.responseStatusForNonExisting)
+                    {
+                        output.vulnerable = true; 
+                        output.message = `${hostname} is a CNAME to ${cname} (non-existant ${thirdPartyServiceCheckConfig.name})`;
+                        break; // Presumably, it's not possible for a single cname to be directed at >1 storage service (?)
+                    }
+                }
+                catch(e)
+                {
+                    // This is just here to catch any client request errors
                 }
             }   
         }
@@ -153,6 +162,17 @@ return resolve(isCNamedTo3rdPartyStorage);
         }
         catch(e)
         {
+            if(e.code === "ENODATA" || e.code === "ENOTFOUND" || e.code === "ESERVFAIL") // If DNS doesn't resolve, it's not (definitely) vulnerable - prob an internal service
+            {
+                const output = 
+                {
+                    vulnerable: false,
+                    message: ""
+                };
+
+                return resolve(output);
+            }
+
             return reject(e);
         }
     });    

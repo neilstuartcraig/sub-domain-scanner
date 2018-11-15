@@ -90,6 +90,7 @@ console.log(`${hostname} - vuln? ${JSON.stringify(isVulnerableDelegation, null, 
                 const isOrphaned: Object = await isHostnameOrphaned(hostname, Resolver, axiosGet); // TODO: rename isOrphaned
                 if(isOrphaned.vulnerable)
                 {
+console.log("errz");                    
 console.error(isOrphaned.message);                    
                 }
 // TODO: auto takeover for s3 etc.
@@ -104,6 +105,7 @@ console.error(isOrphaned.message);
         }
         catch(e)
         {
+console.log("throwing here - test-hostname. need to find in lib");            
             console.error(e.message);
             process.exit(1);
         }

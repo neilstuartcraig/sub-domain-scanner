@@ -101,6 +101,7 @@ let mod = {
                 }
 
                 if (isOrphaned.vulnerable) {
+                    console.log("errz");
                     console.error(isOrphaned.message);
                 }
                 // TODO: auto takeover for s3 etc.
@@ -112,6 +113,7 @@ let mod = {
             // console.log(output);
             process.exit(0);
         } catch (e) {
+            console.log("throwing here - test-hostname. need to find in lib");
             console.error(e.message);
             process.exit(1);
         }
