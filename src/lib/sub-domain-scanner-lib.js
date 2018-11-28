@@ -96,6 +96,25 @@ const axiosGetConfig =
 };
 
 // TODO: add discovery method using https://api.hackertarget.com/findshareddns/?q=ns1.bbc.co.uk
+async function getDomainNamesFromNameserver(nameserver: string, axiosGetFn: Function)
+{
+    return new Promise(async (resolve, reject) => 
+    {
+        try
+        {
+            // TODO: better filtering to avoid security issues with nameserver var content
+            const serviceURL: string = `https://api.hackertarget.com/findshareddns/?q=${nameserver}`;        
+            const response: Object = await axiosGetFn(serviceURL, axiosGetConfig);
+            const domains: Array = response.data.trim().split(EOL);
+            return resolve(domains);
+        }
+        catch(e)
+        {
+            return reject(e);
+        }
+    });
+}
+
 
 // TODO: ignore hostnames which are wildcarded e.g. *.api.bbc.co.uk 
 
@@ -471,14 +490,14 @@ async function getHostnamesFromCTLogs(hostname: string)
     {
         try
         {
-            const RSSURL = getRSSURLFromHostname(hostname);
+            const RSSURL = getRSSURLFromHostname(hostname);        
             const parsedRSS = await parser.parseURL(RSSURL);
             const certificates = getCertificatesFromRSSItems(parsedRSS.items);
             const SANS = getSANSFromCertificatesArray(certificates);
             return resolve(SANS);
         }
         catch(e)
-        {
+        {      
             return reject(e);
         }
     });
@@ -494,5 +513,6 @@ module.exports =
     filterHostnames: filterHostnames,
     isHostnameOrphanedDelegation:isHostnameOrphanedDelegation,
     readFileContentsIntoArray: readFileContentsIntoArray,
-    isHostnameOrphaned: isHostnameOrphaned
+    isHostnameOrphaned: isHostnameOrphaned,
+    getDomainNamesFromNameserver: getDomainNamesFromNameserver
 };

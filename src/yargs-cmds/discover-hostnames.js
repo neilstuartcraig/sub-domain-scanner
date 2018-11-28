@@ -1,14 +1,16 @@
 "use strict";
 
 import {EOL} from "os";
+import {default as getstdin} from "get-stdin";
 import {getHostnamesFromCTLogs, filterHostnames} from "../lib/sub-domain-scanner-lib.js"; // NOTE: Path is relative to build dir (dist/) - local because lib is babel'd
+
 
 const domainNamesOpt = 
 {
     alias: ["domain-names", "domains", "dn"],
     demandOption: true,
     type: "array", 
-    description: "An Array of (strings) domain names to use as the seed. usage: --dn hostname1 hostname 2"
+    description: "An Array of (strings) domain names to use as the seed. Example: --dn=hostname1,hostname 2"
 };
 
 const mustMatchOpt = 
@@ -61,7 +63,19 @@ let mod =
         {
             let allHostnames = [];
 
-            for(let hostname of argv.domainNames)
+            let domainNames: Array = [];
+
+            if(argv.domainNames[0] === "-") // use stdin
+            {
+                const stdin  = await getstdin();
+                domainNames = stdin.trim().replace(/\ {2,}/g, " ").replace(/\ /g, ",").split(",");
+            }
+            else
+            {
+                domainNames = argv.domainNames;
+            }
+
+            for(let hostname of domainNames)
             {
                 const hostnames = await getHostnamesFromCTLogs(hostname);
                 allHostnames = allHostnames.concat(hostnames);

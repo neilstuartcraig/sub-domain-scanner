@@ -101,6 +101,37 @@ const axiosGetConfig = {
 };
 
 // TODO: add discovery method using https://api.hackertarget.com/findshareddns/?q=ns1.bbc.co.uk
+async function getDomainNamesFromNameserver(nameserver, axiosGetFn) {
+    if (!(typeof nameserver === 'string')) {
+        throw new TypeError("Value of argument \"nameserver\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(nameserver));
+    }
+
+    if (!(typeof axiosGetFn === 'function')) {
+        throw new TypeError("Value of argument \"axiosGetFn\" violates contract.\n\nExpected:\nFunction\n\nGot:\n" + _inspect(axiosGetFn));
+    }
+
+    return new Promise(async (resolve, reject) => {
+        try {
+            // TODO: better filtering to avoid security issues with nameserver var content
+            const serviceURL = `https://api.hackertarget.com/findshareddns/?q=${nameserver}`;
+            const response = await axiosGetFn(serviceURL, axiosGetConfig);
+
+            if (!(response instanceof Object)) {
+                throw new TypeError("Value of variable \"response\" violates contract.\n\nExpected:\nObject\n\nGot:\n" + _inspect(response));
+            }
+
+            const domains = response.data.trim().split(_os.EOL);
+
+            if (!Array.isArray(domains)) {
+                throw new TypeError("Value of variable \"domains\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(domains));
+            }
+
+            return resolve(domains);
+        } catch (e) {
+            return reject(e);
+        }
+    });
+}
 
 // TODO: ignore hostnames which are wildcarded e.g. *.api.bbc.co.uk 
 
@@ -587,7 +618,8 @@ module.exports = {
     filterHostnames: filterHostnames,
     isHostnameOrphanedDelegation: isHostnameOrphanedDelegation,
     readFileContentsIntoArray: readFileContentsIntoArray,
-    isHostnameOrphaned: isHostnameOrphaned
+    isHostnameOrphaned: isHostnameOrphaned,
+    getDomainNamesFromNameserver: getDomainNamesFromNameserver
 };
 
 function _inspect(input, depth) {

@@ -1,6 +1,6 @@
 "use strict";
 
-var _os = require("os");
+var _axios = require("axios");
 
 var _getStdin = require("get-stdin");
 
@@ -12,93 +12,75 @@ function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { de
 
 // NOTE: Path is relative to build dir (dist/) - local because lib is babel'd
 
-
-const domainNamesOpt = {
-    alias: ["domain-names", "domains", "dn"],
+const nameserversOpt = {
+    alias: ["nameservers", "ns"],
     demandOption: true,
     type: "array",
-    description: "An Array of (strings) domain names to use as the seed. Example: --dn=hostname1,hostname 2"
+    description: "An array (of strings) of nameservers to discover hostnames under. Example: --ns=ns1.example.com,ns2.example.com or using stdin: --ns=-"
 };
-
-const mustMatchOpt = {
-    alias: ["must-match", "mm"],
-    demandOption: false,
-    type: "string",
-    default: ".*",
-    description: "A regular expression which hostnames must match to be included in the output"
-};
-
-const mustNotMatchOpt = {
-    alias: ["must-not-match", "mnm"],
-    demandOption: false,
-    type: "string",
-    default: "^$",
-    description: "A regular expression which hostnames must not match to be included in the output"
-};
-
-/*
-args to add:
-    --include-ct-logs boolean (true)
-    --ignore-expired-certs boolean (false)
-
-    --include-web-crawl boolean (true)
-    --web-crawl-depth int (1)
-*/
 
 let mod = {
     // Command name - i.e. gtm-cli <command name> <options>
-    command: "discover-hostnames",
+    command: "seed-discovery",
 
     // Command description
-    desc: "Discover hostnames from sources (CT logs, web pages - as per chosen options)",
+    desc: "Seed the discover-hostnames CLI method (via nameservers)",
 
     // Define command options
     builder: {
-        domainNames: domainNamesOpt,
-        mustMatch: mustMatchOpt,
-        mustNotMatch: mustNotMatchOpt
+        nameservers: nameserversOpt
     },
 
     // Handler/main function - this is executed when this command is requested
     handler: async argv => {
         try {
-            let allHostnames = [];
+            let nameservers = [];
 
-            let domainNames = [];
-
-            if (argv.domainNames[0] === "-") // use stdin
+            if (argv.hostnamesFile === "-") // use stdin
                 {
-                    const stdin = await (0, _getStdin2.default)();
-                    domainNames = stdin.trim().replace(/\ {2,}/g, " ").replace(/\ /g, ",").split(",");
+                    nameservers = await (0, _getStdin2.default)();
 
-                    if (!Array.isArray(domainNames)) {
-                        throw new TypeError("Value of variable \"domainNames\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(domainNames));
+                    if (!Array.isArray(nameservers)) {
+                        throw new TypeError("Value of variable \"nameservers\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(nameservers));
                     }
                 } else {
-                domainNames = argv.domainNames;
+                nameservers = argv.nameservers;
 
-                if (!Array.isArray(domainNames)) {
-                    throw new TypeError("Value of variable \"domainNames\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(domainNames));
+                if (!Array.isArray(nameservers)) {
+                    throw new TypeError("Value of variable \"nameservers\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(nameservers));
                 }
             }
 
-            if (!(domainNames && (typeof domainNames[Symbol.iterator] === 'function' || Array.isArray(domainNames)))) {
-                throw new TypeError("Expected domainNames to be iterable, got " + _inspect(domainNames));
+            let domains = [];
+
+            if (!(nameservers && (typeof nameservers[Symbol.iterator] === 'function' || Array.isArray(nameservers)))) {
+                throw new TypeError("Expected nameservers to be iterable, got " + _inspect(nameservers));
             }
 
-            for (let hostname of domainNames) {
-                const hostnames = await (0, _subDomainScannerLib.getHostnamesFromCTLogs)(hostname);
-                allHostnames = allHostnames.concat(hostnames);
+            for (let nameserver of nameservers) {
+                const domainsTmp = await (0, _subDomainScannerLib.getDomainNamesFromNameserver)(nameserver, _axios.get);
+
+                if (!Array.isArray(domainsTmp)) {
+                    throw new TypeError("Value of variable \"domainsTmp\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(domainsTmp));
+                }
+
+                if (!(domainsTmp && (typeof domainsTmp[Symbol.iterator] === 'function' || Array.isArray(domainsTmp)))) {
+                    throw new TypeError("Expected domainsTmp to be iterable, got " + _inspect(domainsTmp));
+                }
+
+                for (let rawDomain of domainsTmp) {
+                    domains.push(`*.${rawDomain}`);
+                }
             }
 
-            const mustMatch = new RegExp(argv.mustMatch);
-            const mustNotMatch = new RegExp(argv.mustNotMatch);
+            const domainsString = domains.join(",");
 
-            const filteredHostnames = (0, _subDomainScannerLib.filterHostnames)(allHostnames, mustMatch, mustNotMatch);
-            const output = filteredHostnames.join(_os.EOL);
+            if (!(typeof domainsString === 'string')) {
+                throw new TypeError("Value of variable \"domainsString\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(domainsString));
+            }
 
-            console.log(output);
-            process.exit(0);
+            console.log(domainsString);
+            process.exit();
         } catch (e) {
             console.error(e.message);
             process.exit(1);

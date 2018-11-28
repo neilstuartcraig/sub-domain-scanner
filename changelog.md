@@ -1,5 +1,8 @@
 # sub-domain-scanner changelog
 
+## v1.3.0
+* Add CLI method seed-discovery
+
 ## v1.2.0
 * Add JSON output format for test-hostnames
 * Output all hostnames in test-hostnames
