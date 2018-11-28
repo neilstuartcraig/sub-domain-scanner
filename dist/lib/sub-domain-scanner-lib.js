@@ -57,7 +57,7 @@ const thirdPartyServicesChecks = [{
     "responseBodyMatchForNonExisting": "InvalidBucketName"
 }, {
     "name": "Cloudfront distribution",
-    "hostnameRegex": /.+\.cloudfront.net$/i,
+    "hostnameRegex": /.+\.cloudfront\.net$/i,
     "scheme": "https",
     "responseStatusForNonExisting": 404,
     "responseBodyMatchForNonExisting": "The request could not be satisfied"
@@ -121,7 +121,9 @@ async function isHostnameCNameTo3rdParty(hostname, cnames, axiosGetFn) {
 
     let output = {
         "vulnerable": false,
-        "message": ""
+        "reasonCode": "",
+        "reason": "",
+        "severity": ""
     };
 
     if (!(cnames && (typeof cnames[Symbol.iterator] === 'function' || Array.isArray(cnames)))) {
@@ -141,11 +143,20 @@ async function isHostnameCNameTo3rdParty(hostname, cnames, axiosGetFn) {
 
                     if (response.data.match(thirdPartyServiceCheckConfig.responseBodyMatchForNonExisting) && response.status === thirdPartyServiceCheckConfig.responseStatusForNonExisting) {
                         output.vulnerable = true;
-                        output.message = `${hostname} is a CNAME to ${cname} (non-existant ${thirdPartyServiceCheckConfig.name})`;
+                        output.reason = `${hostname} is a CNAME to ${cname} (unconfigured ${thirdPartyServiceCheckConfig.name})`;
+                        output.reasonCode = `CNAMED_TO_UNCONFIGURED_3RD_PARTY_SVC`;
+                        output.severity = "high";
                         break; // Presumably, it's not possible for a single cname to be directed at >1 storage service (?)
                     }
                 } catch (e) {
-                    // This is just here to catch any client request errors
+                    if (e.code === "ENOTFOUND") {
+                        output.vulnerable = true;
+                        output.reason = `${hostname} is a CNAME to ${cname} (non-existant DNS for ${thirdPartyServiceCheckConfig.name})`;
+                        output.reasonCode = `CNAMED_TO_NON_EXIST_DNS_3RD_PARTY_SVC`;
+                        output.severity = "medium"; // is this actually medium?
+                        break; // Presumably, it's not possible for a single cname to be directed at >1 storage service (?)
+                    }
+                    // ... more?
                 }
             }
         }
@@ -180,9 +191,9 @@ async function isHostnameOrphaned(hostname, Resolver, axiosGetFn) // TODO: consi
             const resolver = new Resolver();
             const cnames = await resolver.resolveCname(hostname);
 
-            const isCNamedTo3rdPartyStorage = isHostnameCNameTo3rdParty(hostname, cnames, axiosGetFn);
+            const isCNamedTo3rdParty = isHostnameCNameTo3rdParty(hostname, cnames, axiosGetFn);
 
-            return resolve(isCNamedTo3rdPartyStorage);
+            return resolve(isCNamedTo3rdParty);
         } catch (e) {
             if (e.code === "ENODATA" || e.code === "ENOTFOUND" || e.code === "ESERVFAIL") // If DNS doesn't resolve, it's not (definitely) vulnerable - prob an internal service
                 {

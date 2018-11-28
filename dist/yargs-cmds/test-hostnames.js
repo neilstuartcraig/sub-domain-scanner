@@ -79,19 +79,22 @@ let mod = {
                     }
                 }
 
+            let vulnerabilities = {};
+
             if (!(hostnames && (typeof hostnames[Symbol.iterator] === 'function' || Array.isArray(hostnames)))) {
                 throw new TypeError("Expected hostnames to be iterable, got " + _inspect(hostnames));
             }
 
             for (let hostname of hostnames) {
+                // We'll create an empty array in the vulnerabilities object which could be helpful in the output to know a hostname has been tested
+                vulnerabilities[hostname] = [];
+
                 const isVulnerableDelegation = await (0, _subDomainScannerLib.isHostnameOrphanedDelegation)(hostname, Resolver, _axios.get);
                 if (isVulnerableDelegation.vulnerable) {
-                    console.log(`${hostname} - vuln? ${JSON.stringify(isVulnerableDelegation, null, 2)}`);
+                    vulnerabilities[hostname].push(isVulnerableDelegation);
                 }
 
                 // TODO: in discover, add https://hackertarget.com/find-shared-dns-servers/ - seems to find a lot of related domains - try search for ns4.bbc.co.uk
-
-                // TODO: reduce DNS lookups - perhaps do a single lookup per hostname and feed the results into other checker functions
 
                 // test whether orphaned here
                 const isOrphaned = await (0, _subDomainScannerLib.isHostnameOrphaned)(hostname, Resolver, _axios.get); // TODO: rename isOrphaned
@@ -101,16 +104,17 @@ let mod = {
                 }
 
                 if (isOrphaned.vulnerable) {
-                    console.log("errz");
-                    console.error(isOrphaned.message);
+                    vulnerabilities[hostname].push(isOrphaned);
                 }
-                // TODO: auto takeover for s3 etc.
+
+                // TODO: auto takeover for s3 etc. - do as another cmd e.g. sub-domain-scanner auto-takover <hostname> <vuln type>
 
                 // TODO: more checks
                 //
             }
 
-            // console.log(output);
+            // TODO YAML output format
+            console.log(JSON.stringify(vulnerabilities, null, 2));
             process.exit(0);
         } catch (e) {
             console.log("throwing here - test-hostname. need to find in lib");
