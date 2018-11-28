@@ -1,9 +1,18 @@
+#!/usr/bin/env node
+
 "use strict";
+// See https://github.com/yargs/yargs/blob/master/docs/advanced.md#commanddirdirectory-opts for info on the structure of command modules
 
-// TODO: have a specific var for the lib filename and use that for consistency
-// import {default as config} from "../config/sub-domain-scanner-config.js"; // NOTE: Path is relative to build dir (dist/)
-import {getHostnamesFromCTLogs} from "./lib/sub-domain-scanner-lib.js"; // NOTE: Path is relative to build dir (dist/) - local because lib is babel'd
+import yargs from "yargs";
 
+yargs
+.commandDir("yargs-cmds")
+.demandCommand(1, `Please specify a commamd (see above for details and usage example)`)
+.help("help")
+.wrap(yargs.terminalWidth())
+.strict(true)
+.completion("completion", "generate a bash/zsh(/etc.) command completion script. Run `gtm-cli completion >> ~/.bashrc && source ~/.bashrc` (for bash) or `gtm-cli completion >> ~/.zshrc && source ~/.zshrc` (for zsh) to enable it for the current user") // Add a pseudo command named "completion" which generates a bashrc compliant script to enabled CLI command completion for gtm-cli
+.argv;
 
 /*
     TODO:
@@ -32,19 +41,3 @@ import {getHostnamesFromCTLogs} from "./lib/sub-domain-scanner-lib.js"; // NOTE:
     * output should be ranked/grouped by severity
         * critical, high, medium, low, no risk
 */
-
-
-async function main()
-{
-    // NOTE: this won't actually be the fn that gets called, it'll be e.g. run(<opts>)
-    const CTLogs = await getHostnamesFromCTLogs("www.thedotproduct.org");
-
-    for(let hostname of CTLogs)
-    {
-        console.log(`${hostname}`);
-    }
-
-    console.log(`Found ${CTLogs.length} hostnames`);
-}
-
-main();

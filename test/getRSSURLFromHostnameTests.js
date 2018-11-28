@@ -11,8 +11,6 @@ test("Correct operation, valid (non-wildcard) input", (t) =>
 
     const res = getRSSURLFromHostname(hostname);
 
-console.log(res);    
-
     t.is(res === expectedOutput, true, "output must be correct");
 });
 
