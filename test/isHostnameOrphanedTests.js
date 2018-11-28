@@ -63,7 +63,7 @@ test("Correct operation, valid input (vulnerable-s3.example.com: vulnerable)", a
     const output: Object = await isHostnameOrphaned(hostname, Resolver, axiosGet);
     
     t.is(output.vulnerable, true, "vulnerable-s3.example.com must be marked as vulnerable");
-    t.is(output.message.indexOf(hostname) >= 0, true, "vulnerable-s3.example.com must appear in the output message");
+    t.is(output.reason.indexOf(hostname) >= 0, true, "vulnerable-s3.example.com must appear in the output message");
 });
 
 test("Correct operation, valid input (not-vulnerable-s3.example.com: not vulnerable)", async (t) => 
@@ -73,6 +73,6 @@ test("Correct operation, valid input (not-vulnerable-s3.example.com: not vulnera
     const output: Object = await isHostnameOrphaned(hostname, Resolver, axiosGet);
     
     t.is(output.vulnerable, false, "not-vulnerable-s3.example.com must not be marked as vulnerable");
-    t.is(output.message.length === 0, true, "output message must be empty");
-    t.is(typeof output.message === "string", true, "output message must be a string");
+    t.is(output.reason.length === 0, true, "output message must be empty");
+    t.is(typeof output.reason === "string", true, "output message must be a string");
 });
