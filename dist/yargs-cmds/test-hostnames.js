@@ -97,7 +97,7 @@ let mod = {
                 // TODO: in discover, add https://hackertarget.com/find-shared-dns-servers/ - seems to find a lot of related domains - try search for ns4.bbc.co.uk
 
                 // test whether orphaned here
-                const isOrphaned = await (0, _subDomainScannerLib.isHostnameOrphaned)(hostname, Resolver, _axios.get); // TODO: rename isOrphaned
+                const isOrphaned = await (0, _subDomainScannerLib.isHostnameOrphaned)(hostname, Resolver, _axios.get);
 
                 if (!(isOrphaned instanceof Object)) {
                     throw new TypeError("Value of variable \"isOrphaned\" violates contract.\n\nExpected:\nObject\n\nGot:\n" + _inspect(isOrphaned));
@@ -117,7 +117,6 @@ let mod = {
             console.log(JSON.stringify(vulnerabilities, null, 2));
             process.exit(0);
         } catch (e) {
-            console.log("throwing here - test-hostname. need to find in lib");
             console.error(e.message);
             process.exit(1);
         }
