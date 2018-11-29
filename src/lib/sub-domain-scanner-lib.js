@@ -87,6 +87,132 @@ const thirdPartyServicesChecks =
     // TODO: Add more!
 ];
 
+// TODO: move this to a config file
+// Shamelessly stolen (and truncated, top N) from https://raw.githubusercontent.com/darkoperator/dnsrecon/master/subdomains-top1mil.txt for a starter
+const subDomainPrefixes = 
+[
+    "www",
+    "mail",
+    "ftp",
+    "localhost",
+    "webmail",
+    "smtp",
+    "webdisk",
+    "pop",
+    "cpanel",
+    "whm",
+    "ns1",
+    "ns2",
+    "autodiscover",
+    "autoconfig",
+    "ns",
+    "test",
+    "m",
+    "blog",
+    "dev",
+    "www2",
+    "ns3",
+    "pop3",
+    "forum",
+    "admin",
+    "mail2",
+    "vpn",
+    "mx",
+    "imap",
+    "old",
+    "new",
+    "mobile",
+    "mysql",
+    "beta",
+    "support",
+    "cp",
+    "secure",
+    "shop",
+    "demo",
+    "dns2",
+    "ns4",
+    "dns1",
+    "static",
+    "lists",
+    "web",
+    "www1",
+    "img",
+    "news",
+    "portal",
+    "server",
+    "wiki",
+    "api",
+    "media",
+    "images",
+    "www.blog",
+    "backup",
+    "dns",
+    "sql",
+    "intranet",
+    "www.forum",
+    "www.test",
+    "stats",
+    "host",
+    "video",
+    "mail1",
+    "mx1",
+    "www3",
+    "staging",
+    "www.m",
+    "sip",
+    "chat",
+    "search",
+    "crm",
+    "mx2",
+    "ads",
+    "ipv4",
+    "remote",
+    "email",
+    "my",
+    "wap",
+    "svn",
+    "store",
+    "cms",
+    "download",
+    "proxy",
+    "www.dev",
+    "mssql",
+    "apps",
+    "dns3",
+    "exchange",
+    "mail3",
+    "forums",
+    "ns5",
+    "db",
+    "office",
+    "live",
+    "files",
+    "info",
+    "owa",
+    "monitor",
+    "helpdesk",
+    "panel",
+    "sms",
+    "newsletter",
+    "ftp2",
+    "web1",
+    "web2",
+    "upload",
+    "home",
+    "bbs",
+    "login",
+    "app",
+    "en",
+    "blogs",
+    "it",
+    "cdn",
+    "stage",
+    "gw",
+    "dns4",
+    "www.demo",
+    "ssl"
+];
+
 const axiosGetConfig = 
 {
     validateStatus: () => 
@@ -95,7 +221,7 @@ const axiosGetConfig =
     }
 };
 
-// TODO: add discovery method using https://api.hackertarget.com/findshareddns/?q=ns1.bbc.co.uk
+
 async function getDomainNamesFromNameserver(nameserver: string, axiosGetFn: Function)
 {
     return new Promise(async (resolve, reject) => 
@@ -105,6 +231,14 @@ async function getDomainNamesFromNameserver(nameserver: string, axiosGetFn: Func
             // TODO: better filtering to avoid security issues with nameserver var content
             const serviceURL: string = `https://api.hackertarget.com/findshareddns/?q=${nameserver}`;        
             const response: Object = await axiosGetFn(serviceURL, axiosGetConfig);
+
+            // A request for a non-existing NS results in a 200 so we have to put in a brittle special case...
+            if(response.data === "error check your search parameter")
+            {
+                // ...but we don't want to error, just return nowt (i think)
+                return resolve([]);
+            }
+         
             const domains: Array = response.data.trim().split(EOL);
             return resolve(domains);
         }
@@ -410,9 +544,6 @@ async function isHostnameOrphanedDelegation(hostname: string, Resolver: Object, 
 }
 
 
-
-
-
 // Takes an array of hostnames and filters them to remove out of scope entries
 function filterHostnames(hostnames: Array, mustMatch: RegExp, mustNotMatch: RegExp)
 {
@@ -490,11 +621,33 @@ async function getHostnamesFromCTLogs(hostname: string)
     {
         try
         {
-            const RSSURL = getRSSURLFromHostname(hostname);        
-            const parsedRSS = await parser.parseURL(RSSURL);
-            const certificates = getCertificatesFromRSSItems(parsedRSS.items);
-            const SANS = getSANSFromCertificatesArray(certificates);
-            return resolve(SANS);
+            const RSSURL: string = getRSSURLFromHostname(hostname);
+            const parsedRSS: Object = await parser.parseURL(RSSURL);
+            const certificates: Array = getCertificatesFromRSSItems(parsedRSS.items);
+            const SANS: Array = getSANSFromCertificatesArray(certificates);
+            let augmentedHostnames = new Set();
+
+            // Replace "*.<domain name>" with N sub-domains from popular sub-domains list...
+            for(let SANEntry of SANS)
+            {
+                // ...initially we'll only do this for hostnames which begin with *. (but we could do it for all, i guess)
+                if(SANEntry.match(/^\*\./))
+                {
+                    const subDomainEnding = SANEntry.replace(/^\*\./, "");
+                    for(let prefix of subDomainPrefixes)
+                    {
+                        const subDomain = `${prefix}.${subDomainEnding}`;
+                        augmentedHostnames.add(subDomain);
+                    }
+                }
+                else if(SANEntry.length)
+                {
+                    augmentedHostnames.add(SANEntry);
+                }
+            }
+
+            const hostnames = Array.from(augmentedHostnames);
+            return resolve(hostnames);
         }
         catch(e)
         {      

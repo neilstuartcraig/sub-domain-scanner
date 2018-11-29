@@ -18,7 +18,7 @@ const hostnamesFileOpt =
 
 let mod = 
 {
-    // Command name - i.e. gtm-cli <command name> <options>
+    // Command name - i.e. sub-domain-scanner <command name> <options>
     command: "test-hostnames",
 
     // Command description
@@ -87,9 +87,6 @@ let mod =
                     vulnerabilities[hostname].push(isVulnerableDelegation);
                 }
 
-// TODO: in discover, add https://hackertarget.com/find-shared-dns-servers/ - seems to find a lot of related domains - try search for ns4.bbc.co.uk
-
-                // test whether orphaned here
                 const isOrphaned: Object = await isHostnameOrphaned(hostname, Resolver, axiosGet);
                 if(isOrphaned.vulnerable)
                 {       
@@ -99,11 +96,9 @@ let mod =
 // TODO: auto takeover for s3 etc. - do as another cmd e.g. sub-domain-scanner auto-takover <hostname> <vuln type>
 
 // TODO: more checks
-//
-
             }
 
-            // TODO YAML output format
+            // TODO combined JSON/YAML/<something> output format
             console.log(JSON.stringify(vulnerabilities, null, 2));
             process.exit(0);
         }

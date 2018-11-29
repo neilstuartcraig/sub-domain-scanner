@@ -9,16 +9,16 @@ const nameserversOpt =
     alias: ["nameservers", "ns"],
     demandOption: true,
     type: "array", 
-    description: "An array (of strings) of nameservers to discover hostnames under. Example: --ns=ns1.example.com,ns2.example.com or using stdin: --ns=-"
+    description: "An array (of space-separated strings) of nameservers to discover hostnames under. Example: --ns=ns1.example.com ns2.example.com or using stdin: --ns=-"
 };
 
 let mod = 
 {
-    // Command name - i.e. gtm-cli <command name> <options>
-    command: "seed-discovery",
+    // Command name - i.e. sub-domain-scanner <command name> <options>
+    command: "discover-domains",
 
     // Command description
-    desc: "Seed the discover-hostnames CLI method (via nameservers)",
+    desc: "Discover domain names CLI method (via nameservers)",
 
     // Define command options
     builder: 
@@ -42,18 +42,20 @@ let mod =
                 nameservers = argv.nameservers;
             }
 
-            let domains = [];
+            let domainsSet = new Set();
             for(let nameserver of nameservers)
             {
                 const domainsTmp: Array = await getDomainNamesFromNameserver(nameserver, axiosGet);                
                 
                 for(let rawDomain of domainsTmp)
                 {
-                    domains.push(`*.${rawDomain}`);
+                    // NOTE: Due to using the RSS interface (rather than PGSQL), have example.com _and_ *.example.com _does_ make a difference, hence:    
+                    domainsSet.add(`${rawDomain}`);
+                    domainsSet.add(`*.${rawDomain}`);
                 }
             }
 
-            const domainsString: string = domains.join(",");
+            const domainsString: string = Array.from(domainsSet).join(",");
             console.log(domainsString);
             process.exit();
         }

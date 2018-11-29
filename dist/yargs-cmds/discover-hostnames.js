@@ -46,7 +46,7 @@ args to add:
 */
 
 let mod = {
-    // Command name - i.e. gtm-cli <command name> <options>
+    // Command name - i.e. sub-domain-scanner <command name> <options>
     command: "discover-hostnames",
 
     // Command description
@@ -62,7 +62,7 @@ let mod = {
     // Handler/main function - this is executed when this command is requested
     handler: async argv => {
         try {
-            let allHostnames = [];
+            let allHostnames = new Set();
 
             let domainNames = [];
 
@@ -86,15 +86,27 @@ let mod = {
                 throw new TypeError("Expected domainNames to be iterable, got " + _inspect(domainNames));
             }
 
-            for (let hostname of domainNames) {
-                const hostnames = await (0, _subDomainScannerLib.getHostnamesFromCTLogs)(hostname);
-                allHostnames = allHostnames.concat(hostnames);
+            for (let domainName of domainNames) {
+                const hostnames = await (0, _subDomainScannerLib.getHostnamesFromCTLogs)(domainName);
+
+                if (!Array.isArray(hostnames)) {
+                    throw new TypeError("Value of variable \"hostnames\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(hostnames));
+                }
+
+                if (!(hostnames && (typeof hostnames[Symbol.iterator] === 'function' || Array.isArray(hostnames)))) {
+                    throw new TypeError("Expected hostnames to be iterable, got " + _inspect(hostnames));
+                }
+
+                for (let hostname of hostnames) {
+                    allHostnames.add(hostname);
+                }
             }
 
             const mustMatch = new RegExp(argv.mustMatch);
             const mustNotMatch = new RegExp(argv.mustNotMatch);
 
-            const filteredHostnames = (0, _subDomainScannerLib.filterHostnames)(allHostnames, mustMatch, mustNotMatch);
+            const dedupedHostnames = Array.from(allHostnames);
+            const filteredHostnames = (0, _subDomainScannerLib.filterHostnames)(dedupedHostnames, mustMatch, mustNotMatch);
             const output = filteredHostnames.join(_os.EOL);
 
             console.log(output);
@@ -106,7 +118,6 @@ let mod = {
     }
 };
 
-// exports.default = mod;
 module.exports = mod;
 
 function _inspect(input, depth) {

@@ -23,7 +23,7 @@ const hostnamesFileOpt = {
 };
 
 let mod = {
-    // Command name - i.e. gtm-cli <command name> <options>
+    // Command name - i.e. sub-domain-scanner <command name> <options>
     command: "test-hostnames",
 
     // Command description

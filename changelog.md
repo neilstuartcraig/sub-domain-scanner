@@ -1,7 +1,11 @@
 # sub-domain-scanner changelog
 
 ## v1.3.0
-* Add CLI method seed-discovery
+* Add CLI method discover-domains
+* Add auto wildcard output and dedupe output for discover-domains
+* Dedupe output from discover-hostnames
+* Add wildcard subsitution for common sub-domains for discover-hostnames output
+* Minor fixes and tidies
 
 ## v1.2.0
 * Add JSON output format for test-hostnames
