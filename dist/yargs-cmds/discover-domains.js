@@ -69,8 +69,7 @@ let mod = {
                 }
 
                 for (let rawDomain of domainsTmp) {
-                    // NOTE: Due to using the RSS interface (rather than PGSQL), have example.com _and_ *.example.com _does_ make a difference, hence:
-                    // TODO: consider adding more common sub-domains here (from config ideally)                    
+                    // NOTE: Due to using the RSS interface (rather than PGSQL), have example.com _and_ *.example.com _does_ make a difference, hence:    
                     domainsSet.add(`${rawDomain}`);
                     domainsSet.add(`*.${rawDomain}`);
                 }

@@ -94,9 +94,6 @@ let mod = {
                     vulnerabilities[hostname].push(isVulnerableDelegation);
                 }
 
-                // TODO: in discover, add https://hackertarget.com/find-shared-dns-servers/ - seems to find a lot of related domains - try search for ns4.bbc.co.uk
-
-                // test whether orphaned here
                 const isOrphaned = await (0, _subDomainScannerLib.isHostnameOrphaned)(hostname, Resolver, _axios.get);
 
                 if (!(isOrphaned instanceof Object)) {
@@ -110,10 +107,9 @@ let mod = {
                 // TODO: auto takeover for s3 etc. - do as another cmd e.g. sub-domain-scanner auto-takover <hostname> <vuln type>
 
                 // TODO: more checks
-                //
             }
 
-            // TODO YAML output format
+            // TODO combined JSON/YAML/<something> output format
             console.log(JSON.stringify(vulnerabilities, null, 2));
             process.exit(0);
         } catch (e) {
