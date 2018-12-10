@@ -94,13 +94,54 @@ const thirdPartyServicesChecks = [{
     // TODO: Add more!
 }];
 
+// TODO: move this to a config file
+// Shamelessly stolen (and truncated, top N) from https://raw.githubusercontent.com/darkoperator/dnsrecon/master/subdomains-top1mil.txt for a starter
+const subDomainPrefixes = ["www", "mail", "ftp", "localhost", "webmail", "smtp", "webdisk", "pop", "cpanel", "whm", "ns1", "ns2", "autodiscover", "autoconfig", "ns", "test", "m", "blog", "dev", "www2", "ns3", "pop3", "forum", "admin", "mail2", "vpn", "mx", "imap", "old", "new", "mobile", "mysql", "beta", "support", "cp", "secure", "shop", "demo", "dns2", "ns4", "dns1", "static", "lists", "web", "www1", "img", "news", "portal", "server", "wiki", "api", "media", "images", "www.blog", "backup", "dns", "sql", "intranet", "www.forum", "www.test", "stats", "host", "video", "mail1", "mx1", "www3", "staging", "www.m", "sip", "chat", "search", "crm", "mx2", "ads", "ipv4", "remote", "email", "my", "wap", "svn", "store", "cms", "download", "proxy", "www.dev", "mssql", "apps", "dns3", "exchange", "mail3", "forums", "ns5", "db", "office", "live", "files", "info", "owa", "monitor", "helpdesk", "panel", "sms", "newsletter", "ftp2", "web1", "web2", "upload", "home", "bbs", "login", "app", "en", "blogs", "it", "cdn", "stage", "gw", "dns4", "www.demo", "ssl"];
+
 const axiosGetConfig = {
     validateStatus: () => {
         return true;
     }
 };
 
-// TODO: add discovery method using https://api.hackertarget.com/findshareddns/?q=ns1.bbc.co.uk
+async function getDomainNamesFromNameserver(nameserver, axiosGetFn) {
+    if (!(typeof nameserver === 'string')) {
+        throw new TypeError("Value of argument \"nameserver\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(nameserver));
+    }
+
+    if (!(typeof axiosGetFn === 'function')) {
+        throw new TypeError("Value of argument \"axiosGetFn\" violates contract.\n\nExpected:\nFunction\n\nGot:\n" + _inspect(axiosGetFn));
+    }
+
+    return new Promise(async (resolve, reject) => {
+        try {
+            // TODO: better filtering to avoid security issues with nameserver var content
+            const serviceURL = `https://api.hackertarget.com/findshareddns/?q=${nameserver}`;
+            const response = await axiosGetFn(serviceURL, axiosGetConfig);
+
+            // A request for a non-existing NS results in a 200 so we have to put in a brittle special case...
+
+            if (!(response instanceof Object)) {
+                throw new TypeError("Value of variable \"response\" violates contract.\n\nExpected:\nObject\n\nGot:\n" + _inspect(response));
+            }
+
+            if (response.data === "error check your search parameter") {
+                // ...but we don't want to error, just return nowt (i think)
+                return resolve([]);
+            }
+
+            const domains = response.data.trim().split(_os.EOL);
+
+            if (!Array.isArray(domains)) {
+                throw new TypeError("Value of variable \"domains\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(domains));
+            }
+
+            return resolve(domains);
+        } catch (e) {
+            return reject(e);
+        }
+    });
+}
 
 // TODO: ignore hostnames which are wildcarded e.g. *.api.bbc.co.uk 
 
@@ -569,10 +610,57 @@ async function getHostnamesFromCTLogs(hostname) {
     return new Promise(async (resolve, reject) => {
         try {
             const RSSURL = getRSSURLFromHostname(hostname);
+
+            if (!(typeof RSSURL === 'string')) {
+                throw new TypeError("Value of variable \"RSSURL\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(RSSURL));
+            }
+
             const parsedRSS = await parser.parseURL(RSSURL);
+
+            if (!(parsedRSS instanceof Object)) {
+                throw new TypeError("Value of variable \"parsedRSS\" violates contract.\n\nExpected:\nObject\n\nGot:\n" + _inspect(parsedRSS));
+            }
+
             const certificates = getCertificatesFromRSSItems(parsedRSS.items);
+
+            if (!Array.isArray(certificates)) {
+                throw new TypeError("Value of variable \"certificates\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(certificates));
+            }
+
             const SANS = getSANSFromCertificatesArray(certificates);
-            return resolve(SANS);
+
+            if (!Array.isArray(SANS)) {
+                throw new TypeError("Value of variable \"SANS\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(SANS));
+            }
+
+            let augmentedHostnames = new Set();
+
+            // Replace "*.<domain name>" with N sub-domains from popular sub-domains list...
+
+            if (!(SANS && (typeof SANS[Symbol.iterator] === 'function' || Array.isArray(SANS)))) {
+                throw new TypeError("Expected SANS to be iterable, got " + _inspect(SANS));
+            }
+
+            for (let SANEntry of SANS) {
+                // ...initially we'll only do this for hostnames which begin with *. (but we could do it for all, i guess)
+                if (SANEntry.match(/^\*\./)) {
+                    const subDomainEnding = SANEntry.replace(/^\*\./, "");
+
+                    if (!(subDomainPrefixes && (typeof subDomainPrefixes[Symbol.iterator] === 'function' || Array.isArray(subDomainPrefixes)))) {
+                        throw new TypeError("Expected subDomainPrefixes to be iterable, got " + _inspect(subDomainPrefixes));
+                    }
+
+                    for (let prefix of subDomainPrefixes) {
+                        const subDomain = `${prefix}.${subDomainEnding}`;
+                        augmentedHostnames.add(subDomain);
+                    }
+                } else if (SANEntry.length) {
+                    augmentedHostnames.add(SANEntry);
+                }
+            }
+
+            const hostnames = Array.from(augmentedHostnames);
+            return resolve(hostnames);
         } catch (e) {
             return reject(e);
         }
@@ -587,7 +675,8 @@ module.exports = {
     filterHostnames: filterHostnames,
     isHostnameOrphanedDelegation: isHostnameOrphanedDelegation,
     readFileContentsIntoArray: readFileContentsIntoArray,
-    isHostnameOrphaned: isHostnameOrphaned
+    isHostnameOrphaned: isHostnameOrphaned,
+    getDomainNamesFromNameserver: getDomainNamesFromNameserver
 };
 
 function _inspect(input, depth) {

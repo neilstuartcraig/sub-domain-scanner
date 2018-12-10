@@ -1,14 +1,16 @@
 "use strict";
 
 import {EOL} from "os";
+import {default as getstdin} from "get-stdin";
 import {getHostnamesFromCTLogs, filterHostnames} from "../lib/sub-domain-scanner-lib.js"; // NOTE: Path is relative to build dir (dist/) - local because lib is babel'd
+
 
 const domainNamesOpt = 
 {
     alias: ["domain-names", "domains", "dn"],
     demandOption: true,
     type: "array", 
-    description: "An Array of (strings) domain names to use as the seed. usage: --dn hostname1 hostname 2"
+    description: "An Array of (strings) domain names to use as the seed. Example: --dn=hostname1,hostname 2"
 };
 
 const mustMatchOpt = 
@@ -40,7 +42,7 @@ args to add:
 
 let mod = 
 {
-    // Command name - i.e. gtm-cli <command name> <options>
+    // Command name - i.e. sub-domain-scanner <command name> <options>
     command: "discover-hostnames",
 
     // Command description
@@ -59,18 +61,35 @@ let mod =
     {
         try
         {
-            let allHostnames = [];
+            let allHostnames = new Set();
 
-            for(let hostname of argv.domainNames)
+            let domainNames: Array = [];
+
+            if(argv.domainNames[0] === "-") // use stdin
             {
-                const hostnames = await getHostnamesFromCTLogs(hostname);
-                allHostnames = allHostnames.concat(hostnames);
+                const stdin  = await getstdin();
+                domainNames = stdin.trim().replace(/\ {2,}/g, " ").replace(/\ /g, ",").split(",");
             }
-            
+            else
+            {
+                domainNames = argv.domainNames;
+            }
+
+            for(let domainName of domainNames)
+            {
+                const hostnames: Array = await getHostnamesFromCTLogs(domainName);
+
+                for(let hostname of hostnames)
+                {
+                    allHostnames.add(hostname);
+                }
+            }
+
             const mustMatch: RegExp = new RegExp(argv.mustMatch);
             const mustNotMatch: RegExp = new RegExp(argv.mustNotMatch);
 
-            const filteredHostnames = filterHostnames(allHostnames, mustMatch, mustNotMatch);
+            const dedupedHostnames = Array.from(allHostnames);
+            const filteredHostnames = filterHostnames(dedupedHostnames, mustMatch, mustNotMatch);
             const output = filteredHostnames.join(EOL);
 
             console.log(output);
@@ -84,5 +103,4 @@ let mod =
     }
 };
 
-// exports.default = mod;
 module.exports = mod;

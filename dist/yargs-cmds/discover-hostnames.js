@@ -2,15 +2,22 @@
 
 var _os = require("os");
 
+var _getStdin = require("get-stdin");
+
+var _getStdin2 = _interopRequireDefault(_getStdin);
+
 var _subDomainScannerLib = require("../lib/sub-domain-scanner-lib.js");
 
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
 // NOTE: Path is relative to build dir (dist/) - local because lib is babel'd
+
 
 const domainNamesOpt = {
     alias: ["domain-names", "domains", "dn"],
     demandOption: true,
     type: "array",
-    description: "An Array of (strings) domain names to use as the seed. usage: --dn hostname1 hostname 2"
+    description: "An Array of (strings) domain names to use as the seed. Example: --dn=hostname1,hostname 2"
 };
 
 const mustMatchOpt = {
@@ -39,7 +46,7 @@ args to add:
 */
 
 let mod = {
-    // Command name - i.e. gtm-cli <command name> <options>
+    // Command name - i.e. sub-domain-scanner <command name> <options>
     command: "discover-hostnames",
 
     // Command description
@@ -55,25 +62,51 @@ let mod = {
     // Handler/main function - this is executed when this command is requested
     handler: async argv => {
         try {
-            let allHostnames = [];
+            let allHostnames = new Set();
 
-            _argv$domainNames = argv.domainNames;
+            let domainNames = [];
 
-            if (!(_argv$domainNames && (typeof _argv$domainNames[Symbol.iterator] === 'function' || Array.isArray(_argv$domainNames)))) {
-                throw new TypeError("Expected _argv$domainNames to be iterable, got " + _inspect(_argv$domainNames));
+            if (argv.domainNames[0] === "-") // use stdin
+                {
+                    const stdin = await (0, _getStdin2.default)();
+                    domainNames = stdin.trim().replace(/\ {2,}/g, " ").replace(/\ /g, ",").split(",");
+
+                    if (!Array.isArray(domainNames)) {
+                        throw new TypeError("Value of variable \"domainNames\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(domainNames));
+                    }
+                } else {
+                domainNames = argv.domainNames;
+
+                if (!Array.isArray(domainNames)) {
+                    throw new TypeError("Value of variable \"domainNames\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(domainNames));
+                }
             }
 
-            for (let hostname of _argv$domainNames) {
-                var _argv$domainNames;
+            if (!(domainNames && (typeof domainNames[Symbol.iterator] === 'function' || Array.isArray(domainNames)))) {
+                throw new TypeError("Expected domainNames to be iterable, got " + _inspect(domainNames));
+            }
 
-                const hostnames = await (0, _subDomainScannerLib.getHostnamesFromCTLogs)(hostname);
-                allHostnames = allHostnames.concat(hostnames);
+            for (let domainName of domainNames) {
+                const hostnames = await (0, _subDomainScannerLib.getHostnamesFromCTLogs)(domainName);
+
+                if (!Array.isArray(hostnames)) {
+                    throw new TypeError("Value of variable \"hostnames\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(hostnames));
+                }
+
+                if (!(hostnames && (typeof hostnames[Symbol.iterator] === 'function' || Array.isArray(hostnames)))) {
+                    throw new TypeError("Expected hostnames to be iterable, got " + _inspect(hostnames));
+                }
+
+                for (let hostname of hostnames) {
+                    allHostnames.add(hostname);
+                }
             }
 
             const mustMatch = new RegExp(argv.mustMatch);
             const mustNotMatch = new RegExp(argv.mustNotMatch);
 
-            const filteredHostnames = (0, _subDomainScannerLib.filterHostnames)(allHostnames, mustMatch, mustNotMatch);
+            const dedupedHostnames = Array.from(allHostnames);
+            const filteredHostnames = (0, _subDomainScannerLib.filterHostnames)(dedupedHostnames, mustMatch, mustNotMatch);
             const output = filteredHostnames.join(_os.EOL);
 
             console.log(output);
@@ -85,7 +118,6 @@ let mod = {
     }
 };
 
-// exports.default = mod;
 module.exports = mod;
 
 function _inspect(input, depth) {
