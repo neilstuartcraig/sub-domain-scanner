@@ -1,5 +1,8 @@
 # sub-domain-scanner changelog
 
+## v1.4.0
+* Add `--bruteforce` option to `discover-hostnames`
+
 ## v1.3.0
 * Add CLI method discover-domains
 * Add auto wildcard output and dedupe output for discover-domains
