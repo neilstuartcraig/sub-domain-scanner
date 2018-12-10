@@ -2,8 +2,8 @@ os:
   - linux
 language: node_js
 node_js:
-  - "10"
-  - "node"
+  - "11"
+  # - "node"
 script:
   - npm run vuln-scan
   - npm test
