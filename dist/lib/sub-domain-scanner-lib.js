@@ -602,9 +602,13 @@ function getRSSURLFromHostname(hostname) {
     return URL;
 }
 
-async function getHostnamesFromCTLogs(hostname) {
+async function getHostnamesFromCTLogs(hostname, bruteforce) {
     if (!(typeof hostname === 'string')) {
         throw new TypeError("Value of argument \"hostname\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(hostname));
+    }
+
+    if (!(typeof bruteforce === 'boolean')) {
+        throw new TypeError("Value of argument \"bruteforce\" violates contract.\n\nExpected:\nboolean\n\nGot:\n" + _inspect(bruteforce));
     }
 
     return new Promise(async (resolve, reject) => {
@@ -642,24 +646,32 @@ async function getHostnamesFromCTLogs(hostname) {
             }
 
             for (let SANEntry of SANS) {
-                // ...initially we'll only do this for hostnames which begin with *. (but we could do it for all, i guess)
+                // if the user chose to use bruteforce, we'll add common sub-domain prefixes but only for hostnames which begin with *. (but we could do it for all, i guess)
                 if (SANEntry.match(/^\*\./)) {
                     const subDomainEnding = SANEntry.replace(/^\*\./, "");
 
-                    if (!(subDomainPrefixes && (typeof subDomainPrefixes[Symbol.iterator] === 'function' || Array.isArray(subDomainPrefixes)))) {
-                        throw new TypeError("Expected subDomainPrefixes to be iterable, got " + _inspect(subDomainPrefixes));
-                    }
+                    if (bruteforce === true) {
+                        if (!(subDomainPrefixes && (typeof subDomainPrefixes[Symbol.iterator] === 'function' || Array.isArray(subDomainPrefixes)))) {
+                            throw new TypeError("Expected subDomainPrefixes to be iterable, got " + _inspect(subDomainPrefixes));
+                        }
 
-                    for (let prefix of subDomainPrefixes) {
-                        const subDomain = `${prefix}.${subDomainEnding}`;
-                        augmentedHostnames.add(subDomain);
-                    }
+                        for (let prefix of subDomainPrefixes) {
+                            const subDomain = `${prefix}.${subDomainEnding}`;
+                            augmentedHostnames.add(subDomain);
+                        }
+                    } else // If we're configured not to add common sub-domain prefixes, we'll just strip "*." from domain names
+                        {
+                            // console.log(`add ${subDomainEnding}`);                        
+                            augmentedHostnames.add("www.bbc.com");
+                            augmentedHostnames.add(subDomainEnding);
+                        }
                 } else if (SANEntry.length) {
                     augmentedHostnames.add(SANEntry);
                 }
             }
 
             const hostnames = Array.from(augmentedHostnames);
+            console.dir(hostnames);
             return resolve(hostnames);
         } catch (e) {
             return reject(e);

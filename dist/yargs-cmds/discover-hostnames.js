@@ -36,6 +36,14 @@ const mustNotMatchOpt = {
     description: "A regular expression which hostnames must not match to be included in the output"
 };
 
+const bruteforceOpt = {
+    alias: ["bruteforce", "bf", "b"],
+    demandOption: false,
+    type: "boolean",
+    default: false,
+    description: "Whether (true) or not (false) to include a list of common sub-domain prefixes on each hostname"
+};
+
 /*
 args to add:
     --include-ct-logs boolean (true)
@@ -56,7 +64,8 @@ let mod = {
     builder: {
         domainNames: domainNamesOpt,
         mustMatch: mustMatchOpt,
-        mustNotMatch: mustNotMatchOpt
+        mustNotMatch: mustNotMatchOpt,
+        bruteforce: bruteforceOpt
     },
 
     // Handler/main function - this is executed when this command is requested
@@ -87,7 +96,7 @@ let mod = {
             }
 
             for (let domainName of domainNames) {
-                const hostnames = await (0, _subDomainScannerLib.getHostnamesFromCTLogs)(domainName);
+                const hostnames = await (0, _subDomainScannerLib.getHostnamesFromCTLogs)(domainName, argv.bruteforce);
 
                 if (!Array.isArray(hostnames)) {
                     throw new TypeError("Value of variable \"hostnames\" violates contract.\n\nExpected:\nArray\n\nGot:\n" + _inspect(hostnames));

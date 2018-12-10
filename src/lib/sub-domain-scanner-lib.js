@@ -615,7 +615,7 @@ function getRSSURLFromHostname(hostname: string)
     return URL;
 }
 
-async function getHostnamesFromCTLogs(hostname: string)
+async function getHostnamesFromCTLogs(hostname: string, bruteforce: boolean)
 {
     return new Promise(async (resolve, reject) => 
     {
@@ -630,14 +630,22 @@ async function getHostnamesFromCTLogs(hostname: string)
             // Replace "*.<domain name>" with N sub-domains from popular sub-domains list...
             for(let SANEntry of SANS)
             {
-                // ...initially we'll only do this for hostnames which begin with *. (but we could do it for all, i guess)
+                // if the user chose to use bruteforce, we'll add common sub-domain prefixes but only for hostnames which begin with *. (but we could do it for all, i guess)
                 if(SANEntry.match(/^\*\./))
                 {
                     const subDomainEnding = SANEntry.replace(/^\*\./, "");
-                    for(let prefix of subDomainPrefixes)
+
+                    if(bruteforce === true)
                     {
-                        const subDomain = `${prefix}.${subDomainEnding}`;
-                        augmentedHostnames.add(subDomain);
+                        for(let prefix of subDomainPrefixes)
+                        {
+                            const subDomain = `${prefix}.${subDomainEnding}`;
+                            augmentedHostnames.add(subDomain);
+                        }
+                    }
+                    else // If we're configured not to add common sub-domain prefixes, we'll just strip "*." from domain names
+                    {
+                        augmentedHostnames.add(subDomainEnding);
                     }
                 }
                 else if(SANEntry.length)
