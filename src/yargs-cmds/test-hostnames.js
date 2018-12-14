@@ -16,6 +16,15 @@ const hostnamesFileOpt =
     description: "A filename which contains hostnames to test (one file per line). usage: --hostnames-file /path/to/file or --hostnames-file - (to use stdin)"
 };
 
+const verboseOpt = 
+{
+    alias: ["verbose", "v"],
+    demandOption: false,
+    default: false,
+    type: "boolean", 
+    description: "Create verbose output (includes all tested hostnames, not only those with vulnerabilties)"
+};
+
 let mod = 
 {
     // Command name - i.e. sub-domain-scanner <command name> <options>
@@ -27,7 +36,8 @@ let mod =
     // Define command options
     builder: 
     {
-        hostnamesFile: hostnamesFileOpt
+        hostnamesFile: hostnamesFileOpt,
+        verbose: verboseOpt
     },
 
     // Handler/main function - this is executed when this command is requested
@@ -93,13 +103,27 @@ let mod =
                     vulnerabilities[hostname].push(isOrphaned);
                 }
 
+
+                // trim empty entries from vulnerabilities if --verbose != true
+                if(vulnerabilities[hostname].length === 0 && argv.verbose === false)
+                {
+                    delete vulnerabilities[hostname];
+                }
+
 // TODO: auto takeover for s3 etc. - do as another cmd e.g. sub-domain-scanner auto-takover <hostname> <vuln type>
 
 // TODO: more checks
             }
 
             // TODO combined JSON/YAML/<something> output format
-            console.log(JSON.stringify(vulnerabilities, null, 2));
+            if(Object.keys(vulnerabilities).length)
+            {
+               console.log(JSON.stringify(vulnerabilities, null, 2));
+            }
+            else
+            {
+                console.log("no vulnerabilties found");
+            }
             process.exit(0);
         }
         catch(e)
