@@ -1,5 +1,11 @@
 # sub-domain-scanner changelog
 
+## v1.6.0
+* Add YAML output
+
+## v1.5.0
+* ADd `--verbose` option to 
+
 ## v1.4.0
 * Add `--bruteforce` option to `discover-hostnames`
 
