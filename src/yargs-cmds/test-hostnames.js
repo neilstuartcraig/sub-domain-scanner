@@ -4,7 +4,7 @@ import {EOL} from "os";
 import {default as getstdin} from "get-stdin";
 const {Resolver} = require("dns").promises;
 import {get as axiosGet} from "axios";
-
+import {default as YAML} from "js-yaml";
 
 import {isHostnameOrphanedDelegation, readFileContentsIntoArray, isHostnameOrphaned} from "../lib/sub-domain-scanner-lib.js"; // NOTE: Path is relative to build dir (dist/) - local because lib is babel'd
 
@@ -25,6 +25,15 @@ const verboseOpt =
     description: "Create verbose output (includes all tested hostnames, not only those with vulnerabilties)"
 };
 
+const YAMLOpt = 
+{
+    alias: ["yaml", "yml", "y"],
+    demandOption: false,
+    default: false,
+    type: "boolean", 
+    description: "Create YAML formatted output (default is JSON)"
+};
+
 let mod = 
 {
     // Command name - i.e. sub-domain-scanner <command name> <options>
@@ -37,7 +46,8 @@ let mod =
     builder: 
     {
         hostnamesFile: hostnamesFileOpt,
-        verbose: verboseOpt
+        verbose: verboseOpt,
+        YAML: YAMLOpt
     },
 
     // Handler/main function - this is executed when this command is requested
@@ -118,7 +128,15 @@ let mod =
             // TODO combined JSON/YAML/<something> output format
             if(Object.keys(vulnerabilities).length)
             {
-               console.log(JSON.stringify(vulnerabilities, null, 2));
+                if(argv.YAML)
+                {
+                    const output = YAML.safeDump(vulnerabilities);
+                    console.log(output);
+                }
+                else
+                {
+                    console.log(JSON.stringify(vulnerabilities, null, 2));
+                }
             }
             else
             {

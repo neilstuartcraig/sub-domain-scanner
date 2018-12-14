@@ -8,6 +8,10 @@ var _getStdin2 = _interopRequireDefault(_getStdin);
 
 var _axios = require("axios");
 
+var _jsYaml = require("js-yaml");
+
+var _jsYaml2 = _interopRequireDefault(_jsYaml);
+
 var _subDomainScannerLib = require("../lib/sub-domain-scanner-lib.js");
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
@@ -30,6 +34,14 @@ const verboseOpt = {
     description: "Create verbose output (includes all tested hostnames, not only those with vulnerabilties)"
 };
 
+const YAMLOpt = {
+    alias: ["yaml", "yml", "y"],
+    demandOption: false,
+    default: false,
+    type: "boolean",
+    description: "Create YAML formatted output (default is JSON)"
+};
+
 let mod = {
     // Command name - i.e. sub-domain-scanner <command name> <options>
     command: "test-hostnames",
@@ -40,7 +52,8 @@ let mod = {
     // Define command options
     builder: {
         hostnamesFile: hostnamesFileOpt,
-        verbose: verboseOpt
+        verbose: verboseOpt,
+        YAML: YAMLOpt
     },
 
     // Handler/main function - this is executed when this command is requested
@@ -125,7 +138,12 @@ let mod = {
 
             // TODO combined JSON/YAML/<something> output format
             if (Object.keys(vulnerabilities).length) {
-                console.log(JSON.stringify(vulnerabilities, null, 2));
+                if (argv.YAML) {
+                    const output = _jsYaml2.default.safeDump(vulnerabilities);
+                    console.log(output);
+                } else {
+                    console.log(JSON.stringify(vulnerabilities, null, 2));
+                }
             } else {
                 console.log("no vulnerabilties found");
             }
