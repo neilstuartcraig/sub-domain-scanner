@@ -41,7 +41,7 @@ const parser = new _rssParser2.default({
     }
 });
 
-// TODO: mnove this to config or somewhere more sensible
+// TODO: move this to config or somewhere more sensible
 // NOTE: This borrows and is inspired by https://github.com/EdOverflow/smith/blob/master/smith
 const thirdPartyServicesChecks = [{
     "name": "AWS S3 bucket",
@@ -661,8 +661,6 @@ async function getHostnamesFromCTLogs(hostname, bruteforce) {
                         }
                     } else // If we're configured not to add common sub-domain prefixes, we'll just strip "*." from domain names
                         {
-                            // console.log(`add ${subDomainEnding}`);                        
-                            augmentedHostnames.add("www.bbc.com");
                             augmentedHostnames.add(subDomainEnding);
                         }
                 } else if (SANEntry.length) {
@@ -671,7 +669,6 @@ async function getHostnamesFromCTLogs(hostname, bruteforce) {
             }
 
             const hostnames = Array.from(augmentedHostnames);
-            console.dir(hostnames);
             return resolve(hostnames);
         } catch (e) {
             return reject(e);

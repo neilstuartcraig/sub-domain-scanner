@@ -24,7 +24,7 @@ const parser = new Parser(
 });
 
 
-// TODO: mnove this to config or somewhere more sensible
+// TODO: move this to config or somewhere more sensible
 // NOTE: This borrows and is inspired by https://github.com/EdOverflow/smith/blob/master/smith
 const thirdPartyServicesChecks = 
 [
