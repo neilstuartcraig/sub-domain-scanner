@@ -1,5 +1,8 @@
 # sub-domain-scanner changelog
 
+## v1.7.2
+* Fix failing (incorrectly) Travis tests
+
 ## v1.7.1
 * Build
 

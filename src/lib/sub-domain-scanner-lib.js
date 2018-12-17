@@ -484,8 +484,11 @@ async function isHostnameOrphanedDelegation(hostname: string, Resolver: Object, 
                             
                             if(isIPv6(nameserver))
                             {
+console.log("v6 NS");                                
                                 if(safeNameservers.ipv6)
                                 {
+console.log(`safeNameservers.ipv6:`);
+console.dir(safeNameservers.ipv6);
                                     for(let safeIP of safeNameservers.ipv6)
                                     {                                        
                                         const safe = IPRangeCheck(nameserver, safeIP);
