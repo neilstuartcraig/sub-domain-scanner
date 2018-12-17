@@ -239,7 +239,7 @@ async function getDomainNamesFromNameserver(nameserver: string, axiosGetFn: Func
                 return resolve([]);
             }
          
-            const domains: Array = response.data.trim().split(EOL);
+            const domains: Array = response.data.trim().split(EOL);  
             return resolve(domains);
         }
         catch(e)
@@ -323,7 +323,6 @@ async function isHostnameOrphaned(hostname: string, Resolver: Object, axiosGetFn
             const isCNamedTo3rdParty = isHostnameCNameTo3rdParty(hostname, cnames, axiosGetFn);
 
             return resolve(isCNamedTo3rdParty);
-
         }
         catch(e)
         {
@@ -334,7 +333,6 @@ async function isHostnameOrphaned(hostname: string, Resolver: Object, axiosGetFn
                     vulnerable: false,
                     message: ""
                 };
-
                 return resolve(output);
             }
 
@@ -622,7 +620,22 @@ async function getHostnamesFromCTLogs(hostname: string, bruteforce: boolean)
         try
         {
             const RSSURL: string = getRSSURLFromHostname(hostname);
-            const parsedRSS: Object = await parser.parseURL(RSSURL);
+
+            let parsedRSS: Object = {};
+            try
+            {            
+                parsedRSS = await parser.parseURL(RSSURL);
+            }
+            catch(e)
+            {
+// i think this is the error - looks like we need to skip the below if we get 
+                parsedRSS = 
+                {
+                    items: []
+                };
+            }
+
+
             const certificates: Array = getCertificatesFromRSSItems(parsedRSS.items);
             const SANS: Array = getSANSFromCertificatesArray(certificates);
             let augmentedHostnames = new Set();

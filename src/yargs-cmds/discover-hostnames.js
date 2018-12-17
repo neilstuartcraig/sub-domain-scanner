@@ -40,15 +40,6 @@ const bruteforceOpt =
     description: "Whether (true) or not (false) to include a list of common sub-domain prefixes on each hostname"
 };
 
-/*
-args to add:
-    --include-ct-logs boolean (true)
-    --ignore-expired-certs boolean (false)
-
-    --include-web-crawl boolean (true)
-    --web-crawl-depth int (1)
-*/
-
 let mod = 
 {
     // Command name - i.e. sub-domain-scanner <command name> <options>

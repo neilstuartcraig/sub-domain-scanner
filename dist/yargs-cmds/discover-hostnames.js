@@ -44,15 +44,6 @@ const bruteforceOpt = {
     description: "Whether (true) or not (false) to include a list of common sub-domain prefixes on each hostname"
 };
 
-/*
-args to add:
-    --include-ct-logs boolean (true)
-    --ignore-expired-certs boolean (false)
-
-    --include-web-crawl boolean (true)
-    --web-crawl-depth int (1)
-*/
-
 let mod = {
     // Command name - i.e. sub-domain-scanner <command name> <options>
     command: "discover-hostnames",
@@ -96,6 +87,7 @@ let mod = {
             }
 
             for (let domainName of domainNames) {
+                console.log(`domain: ${domainName}`);
                 const hostnames = await (0, _subDomainScannerLib.getHostnamesFromCTLogs)(domainName, argv.bruteforce);
 
                 if (!Array.isArray(hostnames)) {
@@ -107,6 +99,7 @@ let mod = {
                 }
 
                 for (let hostname of hostnames) {
+                    console.log(`host: ${hostname}`);
                     allHostnames.add(hostname);
                 }
             }
@@ -118,9 +111,13 @@ let mod = {
             const filteredHostnames = (0, _subDomainScannerLib.filterHostnames)(dedupedHostnames, mustMatch, mustNotMatch);
             const output = filteredHostnames.join(_os.EOL);
 
+            console.log("main out");
             console.log(output);
             process.exit(0);
         } catch (e) {
+            console.log("err deets");
+            // console.dir(e);           
+            console.log(e.code);
             console.error(e.message);
             process.exit(1);
         }
