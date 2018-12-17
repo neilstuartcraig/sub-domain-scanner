@@ -1,5 +1,8 @@
 # sub-domain-scanner changelog
 
+## v1.7.1
+* Build
+
 ## v1.7.0
 * Fix handling of HTTP 404 response from testing
 

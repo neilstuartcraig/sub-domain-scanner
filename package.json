@@ -1,6 +1,6 @@
 {
   "name": "sub-domain-scanner",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "description": "A CLI sub-domain discovery and analysis tool, intended to help discover and validate sub-domain takeover vulnerabilities",
   "main": "dist/index.js",
   "config": {

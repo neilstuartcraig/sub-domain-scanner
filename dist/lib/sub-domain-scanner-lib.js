@@ -612,8 +612,6 @@ async function getHostnamesFromCTLogs(hostname, bruteforce) {
 
     return new Promise(async (resolve, reject) => {
         try {
-            console.log(`hostname: ${hostname}`);
-
             const RSSURL = getRSSURLFromHostname(hostname);
 
             if (!(typeof RSSURL === 'string')) {
