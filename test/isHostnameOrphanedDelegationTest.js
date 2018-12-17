@@ -131,6 +131,8 @@ test("Correct operation, valid input (NS is an IP address but is on v6 safe list
 
     const isOrphaned: Object = await isHostnameOrphanedDelegation(hostname, Resolver, safeNameservers);
 
+console.dir(isOrphaned);
+
     t.is(isOrphaned.vulnerable, false, "must not be marked as vulnerable");
     t.is(isOrphaned.reasonCode, "IP_NS_ON_V6_SAFE_LIST", "reasonCode must be IP_NS_ON_V6_SAFE_LIST");
 });
