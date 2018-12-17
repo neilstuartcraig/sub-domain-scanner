@@ -242,7 +242,6 @@ async function isHostnameOrphaned(hostname, Resolver, axiosGetFn) // TODO: consi
                         vulnerable: false,
                         message: ""
                     };
-
                     return resolve(output);
                 }
 
@@ -613,16 +612,26 @@ async function getHostnamesFromCTLogs(hostname, bruteforce) {
 
     return new Promise(async (resolve, reject) => {
         try {
+            console.log(`hostname: ${hostname}`);
+
             const RSSURL = getRSSURLFromHostname(hostname);
 
             if (!(typeof RSSURL === 'string')) {
                 throw new TypeError("Value of variable \"RSSURL\" violates contract.\n\nExpected:\nstring\n\nGot:\n" + _inspect(RSSURL));
             }
 
-            const parsedRSS = await parser.parseURL(RSSURL);
+            let parsedRSS = {};
+            try {
+                parsedRSS = await parser.parseURL(RSSURL);
 
-            if (!(parsedRSS instanceof Object)) {
-                throw new TypeError("Value of variable \"parsedRSS\" violates contract.\n\nExpected:\nObject\n\nGot:\n" + _inspect(parsedRSS));
+                if (!(parsedRSS instanceof Object)) {
+                    throw new TypeError("Value of variable \"parsedRSS\" violates contract.\n\nExpected:\nObject\n\nGot:\n" + _inspect(parsedRSS));
+                }
+            } catch (e) {
+                // i think this is the error - looks like we need to skip the below if we get 
+                parsedRSS = {
+                    items: []
+                };
             }
 
             const certificates = getCertificatesFromRSSItems(parsedRSS.items);
